@@ -1,0 +1,122 @@
+.challenge-view {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  margin-bottom: 16px;
+}
+
+.challenge-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.challenge-header h2 {
+  color: var(--primary);
+}
+
+.challenge-description {
+  font-size: 15px;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+  line-height: 1.6;
+}
+
+.challenge-examples {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.challenge-examples .example {
+  background: var(--bg-secondary);
+  padding: 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+}
+
+.challenge-examples pre {
+  background: #1e1e1e;
+  color: #e6e6e6;
+  padding: 8px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  overflow-x: auto;
+  margin-top: 8px;
+}
+
+/* Challenge Navigator */
+.challenge-navigator {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.challenge-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.challenge-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.challenge-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.challenge-item.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.challenge-item.completed {
+  opacity: 0.6;
+}
+
+.challenge-index {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: var(--primary);
+  color: white;
+  border-radius: 50%;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.challenge-item.active .challenge-index {
+  background: white;
+  color: var(--primary);
+}
+
+.challenge-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.navigator-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-control {
+  flex: 1;
+}

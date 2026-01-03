@@ -1,0 +1,12 @@
+Me ajude a criar do zero um projeto com docker compose que tenha um ambiente de entrevista com testes de programação e que permita compartilhamento de tela.
+
+Deve ser criado o front separado do serviço que executa os programas que o entrevistado vai desenvolver. 
+
+essa tela compartilhada terá as linguagens de programação python 3.12, java 21,  golang 1.25.5, node para javascriptoue typescript, C#. a imagem de container deve conter esses sdks .
+o front end interagir com uma api para acessar os recursos usando o kernet da imagem de container. 
+
+o front deve ter um terminal que exibe os logs da execução dependendo da linguagem de forma que seja possivel ver o console da execução do para o entrevistador e o entrevistado.
+
+o design do sistema deve ser flat 2.0 e ter usuários que com perfil de entrevistador que poderá formular desafios (já deixe 5 desafios preprontos e permita a alteração deles) o usuário entrevistado deve ver um desafio por vez e ao clicar em avançar ele verá o proximo.
+
+Os desafios devem ser de nivel básico para avaliar entendimento de algoritmo de programação.

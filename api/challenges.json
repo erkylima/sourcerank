@@ -1,0 +1,37 @@
+[
+  {
+    "id": 1,
+    "title": "Somar dois números",
+    "description": "Leia dois inteiros separados por espaço e imprima a soma.",
+    "inputExample": "2 3",
+    "outputExample": "5"
+  },
+  {
+    "id": 2,
+    "title": "Fatorial (iterativo)",
+    "description": "Calcule o fatorial de um número n (0 <= n <= 12).",
+    "inputExample": "5",
+    "outputExample": "120"
+  },
+  {
+    "id": 3,
+    "title": "Inverter string",
+    "description": "Leia uma string e imprima a string invertida.",
+    "inputExample": "hello",
+    "outputExample": "olleh"
+  },
+  {
+    "id": 4,
+    "title": "Buscar mínimo",
+    "description": "Dada uma lista de inteiros separados por espaço, retorne o menor valor.",
+    "inputExample": "3 5 1 4",
+    "outputExample": "1"
+  },
+  {
+    "id": 5,
+    "title": "Soma de pares",
+    "description": "Dada uma lista de inteiros separados por espaço, imprima a soma dos números pares.",
+    "inputExample": "1 2 3 4 5",
+    "outputExample": "6"
+  }
+]
