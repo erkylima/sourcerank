@@ -31,7 +31,6 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
 }) => {
   const { sessionId } = useParams<{ sessionId: string }>()
   const { currentChallengeIndex } = useSession()
-  const enableCrdt = import.meta.env.VITE_ENABLE_CRDT === 'true'
   const updateContentRef = useRef<((content: string) => void) | null>(null)
   const updateLanguageRef = useRef<((language: string) => void) | null>(null)
 
@@ -74,15 +73,13 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
   // Derived state for current challenge
   const currentChallenge = challenges[currentIndex] || null
 
-  // When CRDT is enabled and currentIndex changes, show starter code
-  // (Socket.io listeners don't fire when CRDT is enabled)
+  // When challenge changes, show starter code (CRDT always on)
   useEffect(() => {
-    if (!enableCrdt || !challenges[currentIndex]) return
-    
+    if (!challenges[currentIndex]) return
     const starter = LANGUAGE_STARTERS[language as keyof typeof LANGUAGE_STARTERS] || LANGUAGE_STARTERS.python
     setCode(starter)
     console.log('[InterviewPage] CRDT mode: showing starter for challenge', { index: currentIndex, language })
-  }, [currentIndex, language, enableCrdt, challenges.length])
+  }, [currentIndex, language, challenges.length])
 
   // Setup socket listeners for challenge navigation (for both CRDT and Socket.io modes)
   useEffect(() => {
@@ -126,19 +123,7 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
     }
   }, [sessionId, challenges.length, language])
 
-  // Broadcast code changes to other users (Socket.io, only when CRDT disabled)
-  useEffect(() => {
-    if (!sessionId || enableCrdt) return
-
-    const socket = executionService.getSocket()
-    if (!socket) return
-
-    socket.emit('session-event', {
-      sessionId,
-      event: 'code-changed',
-      data: { code, language },
-    })
-  }, [code, language, sessionId, enableCrdt])
+  // CRDT handles code sync; no Socket.IO code broadcast needed
 
   // Setup execution logging listeners - both clients should receive logs
   useEffect(() => {
@@ -180,10 +165,9 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
   }, [sessionId])
 
   const handleCodeUpdate = useCallback((newCode: string) => {
-    // Always update local state for display
     setCode(newCode)
-    console.log('[InterviewPage] Code updated (useCrdt:', enableCrdt, '): ', newCode.substring(0, 50))
-  }, [enableCrdt])
+    console.log('[InterviewPage] Code updated (CRDT):', newCode.substring(0, 50))
+  }, [])
 
   const handleLanguageChange = useCallback((newLanguage: string) => {
     console.log('[InterviewPage] 🔄 Changing language:', { from: language, to: newLanguage, note: 'Previous code is preserved in DB' })
@@ -191,19 +175,12 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
     setCode(starter)
     setLanguage(newLanguage)
     
-    // If CRDT is enabled, update language via CRDT
-    if (enableCrdt && updateLanguageRef.current) {
+    // CRDT always on: update language via CRDT
+    if (updateLanguageRef.current) {
       console.log('[InterviewPage] 📡 Updating language via CRDT:', newLanguage)
       updateLanguageRef.current(newLanguage)
-    } else {
-      // Otherwise broadcast language change to other users via Socket.IO
-      const socket = executionService.connect()
-      if (socket && sessionId) {
-        socket.emit(`session-language-changed-${sessionId}`, { language: newLanguage })
-        console.log('[InterviewPage] 📡 Broadcasted language change to peers:', newLanguage)
-      }
     }
-  }, [sessionId, enableCrdt, language])
+  }, [sessionId, language])
 
   const handleExecute = useCallback(async () => {
     if (!sessionId || !challenges[currentIndex]) return
@@ -275,20 +252,20 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
               if (canNavigate) {
                 // Save current challenge state before switching
                 console.log('[InterviewPage] onSelect called for index:', idx, 'currentIndex:', currentIndex)
-                if (enableCrdt && sessionId && currentChallenge?.id) {
-                  console.log('[InterviewPage] Saving snapshot before navigate to:', idx)
-                  // Call async function without awaiting (fire and forget)
-                  crdtService.forceSnapshotSave(sessionId, String(currentChallenge.id), 'code')
-                    .then(() => {
-                      console.log('[InterviewPage] ✅ Snapshot saved successfully for challenge:', currentChallenge.id)
-                      setCurrentIndex(idx)
-                    })
-                    .catch((err) => {
-                      console.error('[InterviewPage] Snapshot save failed:', err)
-                      // Navigate anyway
-                      setCurrentIndex(idx)
-                    })
-                } else {
+                  if (sessionId && currentChallenge?.id) {
+                    console.log('[InterviewPage] Saving snapshot before navigate to:', idx)
+                    // Call async function without awaiting (fire and forget)
+                    crdtService.forceSnapshotSave(sessionId, String(currentChallenge.id), 'code')
+                      .then(() => {
+                        console.log('[InterviewPage] ✅ Snapshot saved successfully for challenge:', currentChallenge.id)
+                        setCurrentIndex(idx)
+                      })
+                      .catch((err) => {
+                        console.error('[InterviewPage] Snapshot save failed:', err)
+                        // Navigate anyway
+                        setCurrentIndex(idx)
+                      })
+                  } else {
                   setCurrentIndex(idx)
                 }
               } else {
@@ -399,7 +376,6 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
             language={language}
             onChange={handleCodeUpdate}
             onLanguageChange={handleLanguageChange}
-            useCrdt={enableCrdt}
             sessionId={sessionId}
             challengeId={currentChallenge?.id}
             onUpdateContentRef={(updateFn) => {

@@ -4,7 +4,6 @@ import authService from '@/services/auth.service'
 import sessionContentService from '@/services/session-content.service'
 
 interface UseCrdtContentProps {
-  enabled: boolean
   sessionId: string
   challengeId: string
   contentType: string
@@ -21,7 +20,6 @@ interface CrdtContentRef {
 
 // Simple hook to sync content via Yjs CRDT - NO SNAPSHOTS, just real-time sync
 export function useCrdtContent({
-  enabled,
   sessionId,
   challengeId,
   contentType,
@@ -50,8 +48,8 @@ export function useCrdtContent({
   useEffect(() => {
     const normalizedChallengeId = String(challengeId || '')
 
-    if (!enabled || !sessionId || !normalizedChallengeId || normalizedChallengeId === 'unknown' || !contentType) {
-      console.log('[useCrdtContent] CRDT disabled or missing props')
+    if (!sessionId || !normalizedChallengeId || normalizedChallengeId === 'unknown' || !contentType) {
+      console.log('[useCrdtContent] CRDT missing props')
       return
     }
 
@@ -370,7 +368,7 @@ export function useCrdtContent({
     return () => {
       cleanupFn?.()
     }
-  }, [enabled, sessionId, challengeId, contentType])
+  }, [sessionId, challengeId, contentType])
 
   const updateContent = useCallback(
     (newContent: string) => {

@@ -9,7 +9,6 @@ interface CodeEditorProps {
   onChange: (code: string) => void
   onLanguageChange?: (language: string) => void
   readOnly?: boolean
-  useCrdt?: boolean
   sessionId?: string
   challengeId?: string
   onUpdateContentRef?: (updateContent: (content: string) => void) => void
@@ -22,7 +21,6 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   onChange,
   onLanguageChange,
   readOnly = false,
-  useCrdt = false,
   sessionId,
   challengeId,
   onUpdateContentRef,
@@ -44,7 +42,6 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   
   // Use generic CRDT content hook
   const { content: syncedContent, language: syncedLanguage, updateContent, updateLanguage } = useCrdtContent({
-    enabled: useCrdt,
     sessionId: sessionId || '',
     challengeId: normalizedChallengeId,
     contentType: 'code',
@@ -54,11 +51,11 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
   // When synced language changes, notify parent
   useEffect(() => {
-    if (useCrdt && syncedLanguage && syncedLanguage !== language && onLanguageChange) {
+    if (syncedLanguage && syncedLanguage !== language && onLanguageChange) {
       console.log('[CodeEditor] Language changed from CRDT:', { from: language, to: syncedLanguage })
       onLanguageChange(syncedLanguage)
     }
-  }, [useCrdt, syncedLanguage, language, onLanguageChange])
+  }, [syncedLanguage, language, onLanguageChange])
 
   // Log initial mount info
   useEffect(() => {
@@ -80,17 +77,15 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
   // Sync parent code prop to local state only when NOT using CRDT
   useEffect(() => {
-    if (!useCrdt) {
-      console.log('[CodeEditor] Non-CRDT mode: updating from parent prop')
-      setLocalCode(code)
-    }
-  }, [code, useCrdt])
+    // Always CRDT: localCode mirrors parent only when CRDT not yet populated
+    setLocalCode(code)
+  }, [code])
 
   // Determine which content to display
   // When CRDT is enabled, use syncedContent (updated from the relay)
   // When CRDT is disabled, use localCode (updated from parent or user input)
   // IMPORTANT: If syncedContent is empty during CRDT init, fall back to code prop (starter)
-  const displayContent = useCrdt ? (syncedContent || code) : localCode
+  const displayContent = syncedContent || code
 
   useEffect(() => {
     console.log('[CodeEditor] displayContent changed:', displayContent.substring(0, 50))
@@ -104,17 +99,11 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         value={displayContent}
         onChange={(value) => {
           const nextValue = value || ''
-          if (useCrdt) {
-            // Only update CRDT if content actually changed
-            if (nextValue !== lastSentContentRef.current) {
-              console.log('[CodeEditor] User typed, sending to CRDT')
-              lastSentContentRef.current = nextValue
-              updateContent(nextValue)
-            }
-          } else {
-            // Non-CRDT mode: update local state
-            setLocalCode(nextValue)
-            onChange(nextValue)
+          // Update CRDT if content actually changed
+          if (nextValue !== lastSentContentRef.current) {
+            console.log('[CodeEditor] User typed, sending to CRDT')
+            lastSentContentRef.current = nextValue
+            updateContent(nextValue)
           }
         }}
         theme="vs-dark"
@@ -126,7 +115,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         }}
         onMount={(editor) => {
           editorRef.current = editor
-          if (useCrdt && displayContent) {
+          if (displayContent) {
             const model = editor.getModel()
             if (model) {
               console.log('[CodeEditor] onMount - setting value to:', displayContent.substring(0, 50))
