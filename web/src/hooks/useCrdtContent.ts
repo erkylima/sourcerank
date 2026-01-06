@@ -14,11 +14,12 @@ interface UseCrdtContentProps {
 interface CrdtContentRef {
   doc: Y.Doc | null
   content: Y.Text | null
+  meta: Y.Map<any> | null
   ws: WebSocket | null
   dbLoadTimeout?: NodeJS.Timeout | null
 }
 
-// Simple hook to sync content via Yjs CRDT - NO SNAPSHOTS, just real-time sync
+// Simple hook to sync content via Yjs CRDT 
 export function useCrdtContent({
   sessionId,
   challengeId,
@@ -26,11 +27,17 @@ export function useCrdtContent({
   onContentChange,
   starterContent = '',
 }: UseCrdtContentProps) {
-  const contentRef = useRef<CrdtContentRef>({ doc: null, content: null, ws: null })
+  const contentRef = useRef<CrdtContentRef>({ doc: null, content: null, meta: null, ws: null })
   const [content, setContent] = useState('')
   const [language, setLanguage] = useState('python')
   const onContentChangeRef = useRef(onContentChange)
   const isMountedRef = useRef(true) // Use ref to persist across effect re-runs
+  const languageRef = useRef('python')
+
+  const applyLanguage = useCallback((lang: string) => {
+    setLanguage(lang)
+    languageRef.current = lang
+  }, [])
 
   // Keep the ref updated without triggering effects
   useEffect(() => {
@@ -67,7 +74,9 @@ export function useCrdtContent({
         contentRef.current.doc = doc
 
         const ytext = doc.getText('content')
+        const ymeta = doc.getMap('meta')
         contentRef.current.content = ytext
+        contentRef.current.meta = ymeta
         
         // Store the current challenge ID to validate updates belong to this challenge
         const currentChallengeId = normalizedChallengeId
@@ -95,11 +104,40 @@ export function useCrdtContent({
         ytext.observe(handleUpdate)
         console.log('[useCrdtContent] ✅ Observer registered')
 
+        // Observe language changes on meta map
+        const handleMetaUpdate = () => {
+          if (!isMountedLocal || !isMountedRef.current) return
+          const metaLanguage = ymeta.get('language') as string | undefined
+          if (metaLanguage && metaLanguage !== languageRef.current) {
+            console.log('[useCrdtContent] 🌐 Language changed via CRDT:', { from: languageRef.current, to: metaLanguage })
+            applyLanguage(metaLanguage)
+          }
+        }
+        ymeta.observe(handleMetaUpdate)
+
         // Flag to control when we accept doc updates from the relay
         // We disable this during initialization to prevent sending our DB load as an update
         let isInitializing = true
         let receivedRemoteState = false
-        let handleDocUpdate: ((update: Uint8Array) => void) | null = null
+        let handleDocUpdate: ((update: Uint8Array, origin?: string) => void) | null = null
+        let bootstrapSent = false
+
+        const sendBootstrap = () => {
+          if (bootstrapSent) return
+          const wsConn = contentRef.current.ws
+          const docRef = contentRef.current.doc
+          if (!wsConn || !docRef || wsConn.readyState !== WebSocket.OPEN) return
+          try {
+            const bootstrap = Y.encodeStateAsUpdate(docRef)
+            if (bootstrap.byteLength > 0) {
+              console.log('[useCrdtContent] 📤 Sending bootstrap state to relay')
+              wsConn.send(bootstrap)
+              bootstrapSent = true
+            }
+          } catch (err) {
+            console.error('[useCrdtContent] Failed to send bootstrap state:', err)
+          }
+        }
 
         // Prepare cleanup early so we always clean even on early return
         cleanupFn = () => {
@@ -113,6 +151,11 @@ export function useCrdtContent({
             ytext.unobserve(handleUpdate)
           } catch (e) {
             console.warn('[useCrdtContent] Cleanup - unobserve failed:', e)
+          }
+          try {
+            ymeta.unobserve(handleMetaUpdate)
+          } catch (e) {
+            // may not be registered yet
           }
           try {
             if (handleDocUpdate) {
@@ -147,7 +190,7 @@ export function useCrdtContent({
           console.error('[useCrdtContent] Error loading from DB:', err)
         }
 
-        setLanguage(dbLanguage)
+        applyLanguage(dbLanguage)
 
         // Step 4: Prepare seed from DB (truth) or starter (only if DB empty)
         // Do NOT apply to Y.Text yet; we first wait for relay snapshot. If relay is silent, we apply seed after timeout.
@@ -155,6 +198,33 @@ export function useCrdtContent({
         const hasSeed = seedContent.length > 0
         let seedApplied = false
         console.log('[useCrdtContent] 🌱 Prepared seed:', { source: dbContent.length > 0 ? 'DB' : 'starter', length: seedContent.length })
+
+        // Seed language into meta map during initialization
+        try {
+          doc.transact(() => {
+            ymeta.set('language', dbLanguage)
+          })
+        } catch (e) {
+          console.error('[useCrdtContent] Failed to seed language into CRDT doc:', e)
+        }
+
+        const applySeedIfEmpty = (label: string) => {
+          if (!hasSeed || seedApplied) return
+          const currentText = ytext.toString()
+          if (currentText.length === 0) {
+            try {
+              doc.transact(() => {
+                ymeta.set('language', dbLanguage)
+                ytext.insert(0, seedContent)
+              }, 'seed')
+              seedApplied = true
+              console.log(`[useCrdtContent] 🌱 Applied seed (${label}) because doc is empty, chars:`, seedContent.length)
+              sendBootstrap()
+            } catch (e) {
+              console.error('[useCrdtContent] Failed to apply seed after init:', e)
+            }
+          }
+        }
 
         // Step 5: Always connect to relay - relay is the CRDT authority
         // DB/starter seed may be overwritten by relay snapshot if it exists
@@ -178,9 +248,13 @@ export function useCrdtContent({
 
         // Send local changes to relay
         // IMPORTANT: Only send if this is still the current challenge being edited
-        handleDocUpdate = (update: Uint8Array) => {
+        handleDocUpdate = (update: Uint8Array, origin?: string) => {
           if (!isMountedLocal) {
             console.log('[useCrdtContent] Doc update ignored - component unmounted')
+            return
+          }
+
+          if (origin === 'relay') {
             return
           }
           
@@ -230,7 +304,7 @@ export function useCrdtContent({
               console.log('[useCrdtContent] ✅ Received initial state from relay for challenge:', currentChallengeId)
             }
             
-            Y.applyUpdate(doc, update)
+            Y.applyUpdate(doc, update, 'relay')
             if (isInitializing) {
               isInitializing = false
               if (contentRef.current.dbLoadTimeout) {
@@ -238,6 +312,8 @@ export function useCrdtContent({
                 contentRef.current.dbLoadTimeout = null
               }
               console.log('[useCrdtContent] ✅ Initialization complete - enabling real-time updates')
+              applySeedIfEmpty('post-relay')
+              sendBootstrap()
             }
             console.log('[useCrdtContent] After applyUpdate - content:', ytext.toString().substring(0, 50))
             // Observer should trigger from applyUpdate
@@ -279,30 +355,7 @@ export function useCrdtContent({
             
             if (isInitializing) {
               if (!receivedRemoteState) {
-                if (hasSeed && !seedApplied) {
-                  try {
-                    doc.transact(() => {
-                      ytext.insert(0, seedContent)
-                    })
-                    seedApplied = true
-                    console.log('[useCrdtContent] ⏱️ Backup timeout - applied local seed (relay silent), chars:', seedContent.length)
-                    if (ws.readyState === WebSocket.OPEN) {
-                      try {
-                        const bootstrap = Y.encodeStateAsUpdate(doc)
-                        if (bootstrap.byteLength > 0) {
-                          console.log('[useCrdtContent] ⏱️ Backup timeout - sending seeded state to relay:', bootstrap.byteLength, 'bytes')
-                          ws.send(bootstrap)
-                        }
-                      } catch (encodeErr) {
-                        console.error('[useCrdtContent] Failed to send seeded state on timeout:', encodeErr)
-                      }
-                    }
-                  } catch (e) {
-                    console.error('[useCrdtContent] Failed to apply seed on timeout:', e)
-                  }
-                } else {
-                  console.log('[useCrdtContent] ⏱️ Backup timeout - no seed to apply (relay silent)')
-                }
+                applySeedIfEmpty('timeout')
               }
 
               isInitializing = false
@@ -310,6 +363,7 @@ export function useCrdtContent({
                 contentRef.current.dbLoadTimeout = null
               }
               console.log('[useCrdtContent] ✅ Initialization complete after timeout (relay silent)')
+              sendBootstrap()
             }
           }, backupTimeoutMs)
           
@@ -412,10 +466,21 @@ export function useCrdtContent({
   const updateLanguage = useCallback(
     (newLanguage: string) => {
       console.log('[useCrdtContent] updateLanguage:', newLanguage)
-      setLanguage(newLanguage)
-      // Language is not persisted in CRDT, handled separately via Socket.IO or DB
+      const doc = contentRef.current.doc
+      const ymeta = contentRef.current.meta
+
+      if (!doc || !ymeta) {
+        console.warn('[useCrdtContent] updateLanguage: CRDT doc/meta not ready')
+        applyLanguage(newLanguage)
+        return
+      }
+
+      doc.transact(() => {
+        ymeta.set('language', newLanguage)
+      })
+      applyLanguage(newLanguage)
     },
-    [],
+    [applyLanguage],
   )
 
   return {
