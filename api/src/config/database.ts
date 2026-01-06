@@ -96,6 +96,20 @@ export const initializeDatabase = async () => {
       CREATE INDEX IF NOT EXISTS idx_session_challenge_content_challenge ON session_challenge_content(challenge_id);
       CREATE INDEX IF NOT EXISTS idx_session_challenge_content_lookup ON session_challenge_content(session_id, challenge_id, content_type);
 
+      -- Future language history (feature-flagged, not yet consumed)
+      CREATE TABLE IF NOT EXISTS session_language_history (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_id UUID NOT NULL REFERENCES sessions(id),
+        challenge_id INTEGER NOT NULL REFERENCES challenges(id),
+        content_type VARCHAR(50) NOT NULL DEFAULT 'code',
+        language VARCHAR(50) NOT NULL,
+        source VARCHAR(50),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_language_history_session ON session_language_history(session_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_language_history_challenge ON session_language_history(challenge_id, created_at);
+
       -- Add missing columns to sessions table if they don't exist
       ALTER TABLE sessions ADD COLUMN IF NOT EXISTS session_code VARCHAR(20);
       ALTER TABLE sessions ADD COLUMN IF NOT EXISTS interviewee_accepted BOOLEAN DEFAULT false;

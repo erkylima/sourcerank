@@ -263,7 +263,7 @@ export function useCrdtContent({
           
           // Backup timeout 3s: if relay doesn't respond, treat as offline.
           // If no snapshot arrived, push our seed once; otherwise just finish init.
-          const backupTimeoutMs = 3000
+          const backupTimeoutMs = 5000
           
           const backupTimeout = setTimeout(() => {
             if (!isMountedLocal) {
