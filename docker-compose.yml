@@ -51,18 +51,20 @@ services:
       - ./runner/src:/app/src
     command: npm run dev
 
-  # Yjs Relay (WebSocket + persistence)
-  yjs:
-    build: ./backend-yjs
-    container_name: sr_yjs
-    ports:
-      - "1234:1234"
+  # Yjs Relay (CRDT) - internal only
+  yjs-relay:
+    build: ./yjs-relay
+    container_name: sr_yjs_relay
+    volumes:
+      - yjs_snapshots:/tmp/yjs-snapshots
     environment:
       - PORT=1234
       - JWT_SECRET=dev-jwt-secret
-      - RUNNER_URL=http://runner:3001
-    volumes:
-      - ./backend-yjs/data:/app/data
+      - ENABLE_S3_SNAPSHOT=${ENABLE_S3_SNAPSHOT:-false}
+      - S3_BUCKET=${S3_BUCKET:-}
+      - S3_PREFIX=${S3_PREFIX:-yjs/}
+      - S3_REGION=${S3_REGION:-us-east-1}
+      - SNAPSHOT_INTERVAL=${SNAPSHOT_INTERVAL:-20}
     depends_on:
       - api
 
@@ -73,7 +75,8 @@ services:
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_URL=http://192.168.1.12:4000
+      - VITE_API_URL=http://localhost:4000
+      - VITE_ENABLE_CRDT=true
     depends_on:
       - api
     volumes:
@@ -81,3 +84,4 @@ services:
 
 volumes:
   postgres_data:
+  yjs_snapshots:

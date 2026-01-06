@@ -10,3 +10,18 @@ o front deve ter um terminal que exibe os logs da execução dependendo da lingu
 o design do sistema deve ser flat 2.0 e ter usuários que com perfil de entrevistador que poderá formular desafios (já deixe 5 desafios preprontos e permita a alteração deles) o usuário entrevistado deve ver um desafio por vez e ao clicar em avançar ele verá o proximo.
 
 Os desafios devem ser de nivel básico para avaliar entendimento de algoritmo de programação.
+
+ http://192.168.1.12:4000/sessions/0af6771f-b68d-4219-962e-bf894d0b5fe7 
+ 
+ 39d51536
+ 
+ É necessário ter testes unitários para garantir que tudo funcione como previsto. O programa já está muito grande e é necessário garantir o funcionamento de todas as features
+ 
+ Vou repetir as premissas:
+Visualizar o mesmo conteudo e editar o mesmo conteudo na entrevista.
+Sincronizar alteração de challange entre candidato e entrevistador
+Sincronizar logs de terminal entre entrevistador e candidato
+Sincronizar conteudo de desafio via crdt se habilitado e socket caso não.
+O contedo pode ser do tipo codigo, system design(nao implementado), data design (nao implementado), precisa estar preparado para isso
+Cada desafio deve manter seu próprio conteudo na entrevista independentemente
+O relay crdt é interno

@@ -6,13 +6,11 @@
 - **Frontend:** http://localhost:5173
 - **API:** http://localhost:4000
 - **Code Runner:** http://localhost:3001
-- **Yjs Relay:** ws://localhost:1234
 
 ### De Outro Dispositivo na Rede (Celular, Tablet, etc)
 - **Frontend:** http://192.168.1.12:5173
 - **API:** http://192.168.1.12:4000
 - **Code Runner:** http://192.168.1.12:3001
-- **Yjs Relay:** ws://192.168.1.12:1234
 
 ---
 
@@ -145,7 +143,6 @@ Certifique-se de que sua máquina permite conexões dos ports:
 - **5173** (Frontend)
 - **4000** (API)
 - **3001** (Runner)
-- **1234** (Yjs)
 
 ### 2. IP Local
 O IP **192.168.1.12** pode variar dependendo de sua rede. Para verificar:

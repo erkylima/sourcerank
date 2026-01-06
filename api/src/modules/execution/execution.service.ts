@@ -73,7 +73,7 @@ export class ExecutionService {
     status: ExecutionStatus,
     stdout?: string,
     stderr?: string,
-    exitCode?: number,
+    _exitCode?: number,
     executionTime?: number,
   ): Promise<Execution> {
     const result = await query(

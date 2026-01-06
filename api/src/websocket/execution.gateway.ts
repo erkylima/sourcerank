@@ -75,7 +75,13 @@ export class ExecutionGateway {
       // Join session room
       socket.on('join-session', (sessionId: string) => {
         socket.join(`session:${sessionId}`)
-        console.log(`Client ${socket.id} joined session: ${sessionId}`)
+        const roomName = `session:${sessionId}`
+        const clientCount = this.io.sockets.adapter.rooms.get(roomName)?.size || 0
+        console.log(`[join-session] ✅ Client ${socket.id} joined session: ${sessionId} (total in room: ${clientCount})`)
+        
+        // Log all clients in the room
+        const clientsInRoom = Array.from(this.io.sockets.adapter.rooms.get(roomName) || new Set())
+        console.log(`[join-session] Clients in room: ${clientsInRoom.join(', ')}`)
       })
 
       // Leave session room
@@ -96,6 +102,45 @@ export class ExecutionGateway {
           
           this.io.to(roomName).emit(eventName, data)
           console.log(`[session-event] Broadcasted to room "${roomName}" with event "${eventName}"`)
+        }
+      })
+
+      // Generic event handler for dynamic session events
+      socket.onAny((eventName: string, payload: any) => {
+        if (eventName.startsWith('session-challenge-changed-')) {
+          const sessionId = eventName.replace('session-challenge-changed-', '')
+          const roomName = `session:${sessionId}`
+          const roomSockets = Array.from(this.io.sockets.adapter.rooms.get(roomName) || new Set())
+          const clientCount = roomSockets.length
+          const senderInRoom = roomSockets.includes(socket.id)
+          
+          console.log(`[challenge-changed] ✅ Received from ${socket.id}: sessionId=${sessionId}, index=${payload.index}`)
+          console.log(`[challenge-changed] Room "${roomName}" clients:`, clientCount)
+          console.log(`[challenge-changed] Socket IDs in room:`, roomSockets.join(', '))
+          console.log(`[challenge-changed] Sender in room?`, senderInRoom)
+          
+          // Broadcast to all clients in the session EXCEPT the sender
+          const recipientCount = roomSockets.filter(c => c !== socket.id).length
+          console.log(`[challenge-changed] Broadcasting to ${recipientCount} recipients:`, roomSockets.filter(c => c !== socket.id).join(', '))
+          this.io.to(roomName).except(socket.id).emit(`session-challenge-changed-${sessionId}`, payload)
+          console.log(`[challenge-changed] ✅ Broadcasted to room "${roomName}"`)
+        } else if (eventName.startsWith('session-language-changed-')) {
+          const sessionId = eventName.replace('session-language-changed-', '')
+          const roomName = `session:${sessionId}`
+          const roomSockets = Array.from(this.io.sockets.adapter.rooms.get(roomName) || new Set())
+          const clientCount = roomSockets.length
+          const senderInRoom = roomSockets.includes(socket.id)
+          
+          console.log(`[language-changed] ✅ Received from ${socket.id}: sessionId=${sessionId}, language=${payload.language}`)
+          console.log(`[language-changed] Room "${roomName}" clients:`, clientCount)
+          console.log(`[language-changed] Socket IDs in room:`, roomSockets.join(', '))
+          console.log(`[language-changed] Sender in room?`, senderInRoom)
+          
+          // Broadcast to all clients in the session EXCEPT the sender
+          const recipientCount = roomSockets.filter(c => c !== socket.id).length
+          console.log(`[language-changed] Broadcasting to ${recipientCount} recipients:`, roomSockets.filter(c => c !== socket.id).join(', '))
+          this.io.to(roomName).except(socket.id).emit(`session-language-changed-${sessionId}`, payload)
+          console.log(`[language-changed] ✅ Broadcasted to room "${roomName}"`)
         }
       })
 

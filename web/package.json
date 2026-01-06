@@ -18,7 +18,8 @@
     "@monaco-editor/react": "^4.6.0",
     "xterm": "^5.3.0",
     "@xterm/addon-fit": "^0.9.0",
-    "axios": "^1.6.2"
+    "axios": "^1.6.2",
+    "yjs": "^13.6.14"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.0.0",

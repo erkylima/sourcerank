@@ -13,7 +13,7 @@ CANDIDATE=$(curl -s -X POST http://localhost:4000/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "candidate@test.com",
-    "password": "password123"
+    "password": "candtest123"
   }')
 CANDIDATE_TOKEN=$(echo "$CANDIDATE" | jq -r '.token')
 CANDIDATE_ID=$(echo "$CANDIDATE" | jq -r '.user.id')

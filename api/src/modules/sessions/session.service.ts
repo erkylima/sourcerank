@@ -18,13 +18,43 @@ export class SessionService {
     intervieweeId: string,
     currentChallengeId: string,
   ): Promise<Session> {
+    // Validate interviewer exists
+    const interviewerExists = await query('SELECT id FROM users WHERE id = $1', [interviewerId])
+    if (interviewerExists.rows.length === 0) {
+      throw new Error('Interviewer not found')
+    }
+
+    // Validate interviewee exists if provided
+    if (intervieweeId) {
+      const intervieweeExists = await query('SELECT id FROM users WHERE id = $1', [intervieweeId])
+      if (intervieweeExists.rows.length === 0) {
+        throw new Error('Interviewee not found')
+      }
+    }
+
+    // Validate challenge exists
+    const challengeExists = await query('SELECT id FROM challenges WHERE id = $1', [currentChallengeId])
+    if (challengeExists.rows.length === 0) {
+      throw new Error('Challenge not found')
+    }
+
     const id = uuidv4()
-    const result = await query(
-      `INSERT INTO sessions (id, interviewer_id, interviewee_id, current_challenge_id, status)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [id, interviewerId, intervieweeId, currentChallengeId, 'pending'],
-    )
-    return result.rows[0]
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000)
+    const sessionCode = id.substring(0, 8).toUpperCase()
+
+    try {
+      const result = await query(
+        `INSERT INTO sessions (id, interviewer_id, interviewee_id, current_challenge_id, status, expires_at, session_code)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+        [id, interviewerId, intervieweeId || null, currentChallengeId, 'pending', expiresAt, sessionCode],
+      )
+      return result.rows[0]
+    } catch (error: any) {
+      if (error.code === '23503') {
+        throw new Error('Foreign key constraint failed - ensure all referenced users and challenges exist')
+      }
+      throw error
+    }
   }
 
   async getSessionById(id: string): Promise<Session> {
@@ -64,6 +94,12 @@ export class SessionService {
   }
 
   async createSessionForInterviewer(interviewerId: string): Promise<Session> {
+    // Validate interviewer exists
+    const interviewerExists = await query('SELECT id FROM users WHERE id = $1', [interviewerId])
+    if (interviewerExists.rows.length === 0) {
+      throw new Error('Interviewer not found')
+    }
+
     const id = uuidv4()
     // Usar os primeiros 8 caracteres do UUID como session_code
     const sessionCode = id.substring(0, 8).toUpperCase()
@@ -71,28 +107,49 @@ export class SessionService {
     // Expirar em 30 minutos
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000)
     
-    const result = await query(
-      `INSERT INTO sessions (id, interviewer_id, interviewee_id, status, expires_at, session_code)
-       VALUES ($1, $2, NULL, $3, $4, $5) RETURNING *`,
-      [id, interviewerId, 'pending', expiresAt, sessionCode],
-    )
-    return result.rows[0]
+    try {
+      const result = await query(
+        `INSERT INTO sessions (id, interviewer_id, interviewee_id, status, expires_at, session_code)
+         VALUES ($1, $2, NULL, $3, $4, $5) RETURNING *`,
+        [id, interviewerId, 'pending', expiresAt, sessionCode],
+      )
+      return result.rows[0]
+    } catch (error: any) {
+      if (error.code === '23503') {
+        throw new Error('Foreign key constraint failed - interviewer not found')
+      }
+      throw error
+    }
   }
 
   async requestIntervieweeAccess(sessionCode: string, intervieweeId: string): Promise<Session> {
+    // Validate interviewee exists
+    const intervieweeExists = await query('SELECT id FROM users WHERE id = $1', [intervieweeId])
+    if (intervieweeExists.rows.length === 0) {
+      throw new Error('Interviewee not found')
+    }
+
     // Buscar session pelo código (que é na verdade os primeiros 8 chars do ID)
     const idPrefix = sessionCode.toLowerCase()
-    const result = await query(
-      `UPDATE sessions 
-       SET interviewee_id = $1, interviewee_requested_at = NOW()
-       WHERE id::text ILIKE $2
-       RETURNING *`,
-      [intervieweeId, `${idPrefix}%`],
-    )
-    if (result.rows.length === 0) {
-      throw new Error('Session not found or already has an interviewee')
+    
+    try {
+      const result = await query(
+        `UPDATE sessions 
+         SET interviewee_id = $1, interviewee_requested_at = NOW()
+         WHERE id::text ILIKE $2
+         RETURNING *`,
+        [intervieweeId, `${idPrefix}%`],
+      )
+      if (result.rows.length === 0) {
+        throw new Error('Session not found or already has an interviewee')
+      }
+      return result.rows[0]
+    } catch (error: any) {
+      if (error.code === '23503') {
+        throw new Error('Foreign key constraint failed - interviewee not found in system')
+      }
+      throw error
     }
-    return result.rows[0]
   }
 
   async acceptInterviewee(sessionId: string, interviewerId: string): Promise<Session> {
@@ -108,7 +165,7 @@ export class SessionService {
 
     const result = await query(
       `UPDATE sessions 
-       SET interviewee_accepted = true, status = 'active', updated_at = NOW()
+       SET interviewee_accepted = true, status = 'active', started_at = NOW(), updated_at = NOW()
        WHERE id = $1
        RETURNING *`,
       [sessionId],
@@ -138,6 +195,8 @@ export class SessionService {
   }
 
   async cleanupExpiredSessions(): Promise<number> {
+    // Only cleanup pending sessions that have expired their time limit
+    // Active sessions never expire
     const result = await query(
       `UPDATE sessions 
        SET status = 'expired'

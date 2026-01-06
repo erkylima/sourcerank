@@ -3,6 +3,7 @@ import config from './config/env'
 import { initializeDatabase } from './config/database'
 import { createApp } from './app'
 import { ExecutionGateway } from './websocket/execution.gateway'
+import { YjsProxyGateway } from './websocket/yjs-proxy.gateway'
 import sessionService from './modules/sessions/session.service'
 
 async function startServer() {
@@ -18,9 +19,13 @@ async function startServer() {
     // Create HTTP server
     const server = http.createServer(app)
 
-    // Initialize WebSocket gateway
+    // Initialize WebSocket gateway (Socket.IO for executions)
     const executionGateway = new ExecutionGateway(server)
     console.log('WebSocket gateway initialized')
+
+    // Initialize Yjs proxy gateway (separate WebSocket for CRDT)
+    new YjsProxyGateway(server, 'ws://yjs-relay:1234')
+    console.log('Yjs proxy gateway initialized')
 
     // Store gateway in app for use in routes
     app.locals.executionGateway = executionGateway

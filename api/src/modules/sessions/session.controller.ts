@@ -7,15 +7,22 @@ export class SessionController {
       const { intervieweeId, currentChallengeId } = req.body
       const interviewerId = (req as any).userId
 
-      if (!intervieweeId || !currentChallengeId) {
-        res.status(400).json({ error: 'Missing required fields' })
+      if (!currentChallengeId) {
+        res.status(400).json({ error: 'Missing required field: currentChallengeId' })
         return
       }
 
       const session = await sessionService.createSession(interviewerId, intervieweeId, currentChallengeId)
       res.status(201).json({ session })
     } catch (error: any) {
-      res.status(400).json({ error: error.message })
+      console.error('Session creation error:', error.message)
+      if (error.message.includes('not found')) {
+        res.status(404).json({ error: error.message })
+      } else if (error.message.includes('Foreign key')) {
+        res.status(400).json({ error: 'Invalid data: ' + error.message })
+      } else {
+        res.status(400).json({ error: error.message })
+      }
     }
   }
 
@@ -114,7 +121,14 @@ export class SessionController {
       
       res.status(200).json({ session })
     } catch (error: any) {
-      res.status(400).json({ error: error.message })
+      console.error('Request access error:', error.message)
+      if (error.message.includes('not found')) {
+        res.status(404).json({ error: error.message })
+      } else if (error.message.includes('Foreign key')) {
+        res.status(400).json({ error: 'Invalid data: ' + error.message })
+      } else {
+        res.status(400).json({ error: error.message })
+      }
     }
   }
 

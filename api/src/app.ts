@@ -4,6 +4,8 @@ import authRoutes from './modules/auth/auth.routes'
 import challengeRoutes from './modules/challenges/challenge.routes'
 import sessionRoutes from './modules/sessions/session.routes'
 import executionRoutes from './modules/execution/execution.routes'
+import crdtRoutes from './modules/crdt/crdt.routes'
+import sessionContentRoutes from './modules/session-content/session-content.routes'
 import { AppError } from './utils/errors'
 
 export function createApp(): Express {
@@ -19,6 +21,8 @@ export function createApp(): Express {
   app.use('/challenges', challengeRoutes)
   app.use('/sessions', sessionRoutes)
   app.use('/executions', executionRoutes)
+  app.use('/crdt', crdtRoutes)
+  app.use('/session-content', sessionContentRoutes)
 
   // Health check
   app.get('/health', (_req: Request, res: Response) => {

@@ -38,28 +38,34 @@ export const ExecutionTerminal: React.FC<ExecutionTerminalProps> = ({ logs, isEx
     const fitAddon = new FitAddon()
     term.loadAddon(fitAddon)
     
-    term.open(terminalRef.current)
+    try {
+      term.open(terminalRef.current)
+    } catch (err) {
+      console.error('Error opening terminal:', err)
+      return
+    }
     
-    // Fit after DOM is ready
+    // Fit after DOM is ready - with safety checks
     setTimeout(() => {
       try {
-        fitAddon.fit()
-        // Don't write "Terminal initialized." here - will be handled by logs useEffect
+        if (fitAddon && terminalRef.current && terminalRef.current.offsetHeight > 0) {
+          fitAddon.fit()
+        }
       } catch (err) {
-        console.error('Error fitting terminal:', err)
+        console.debug('Terminal fit not yet available (expected on initial render):', err)
       }
-    }, 50)
+    }, 100)
 
     terminalInstance.current = term
     fitAddonRef.current = fitAddon
 
     const handleResize = () => {
       try {
-        if (fitAddonRef.current) {
+        if (fitAddonRef.current && terminalRef.current && terminalRef.current.offsetHeight > 0) {
           fitAddonRef.current.fit()
         }
       } catch (err) {
-        console.error('Error fitting terminal:', err)
+        console.debug('Error fitting terminal on resize:', err)
       }
     }
     window.addEventListener('resize', handleResize)
