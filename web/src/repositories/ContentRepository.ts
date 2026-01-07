@@ -18,12 +18,21 @@ export type UnsubscribeFunction = () => void
  */
 export interface ContentRepository {
   /**
+   * Get preferred language for a challenge (most recently used)
+   */
+  getPreferredLanguage(
+    sessionId: string,
+    challengeId: number
+  ): Promise<string>
+
+  /**
    * Load content from persistent storage
    */
   load(
     sessionId: string,
     challengeId: number,
-    contentType: string
+    contentType: string,
+    language: string
   ): Promise<ChallengeContentData>
 
   /**
@@ -34,7 +43,8 @@ export interface ContentRepository {
     challengeId: number,
     content: string,
     language: string,
-    contentType: string
+    contentType: string,
+    started?: boolean
   ): Promise<void>
 
   /**
@@ -44,6 +54,7 @@ export interface ContentRepository {
     sessionId: string,
     challengeId: string,
     contentType: string,
+    language: string,
     callback: ContentUpdateCallback
   ): UnsubscribeFunction
 

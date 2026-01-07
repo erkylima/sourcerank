@@ -36,7 +36,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   const prevLanguageRef = useRef<string>('')
   const lastContentRef = useRef<string>('')
   const isInitializedRef = useRef(false)
-  const starterAppliedRef = useRef(false)
+  const starterAppliedForRef = useRef<string>('')  // Track challenge+language where starter was applied
   
   // Create EditorSyncController instance (one per component)
   const syncController = useMemo(() => new EditorSyncController(), [])
@@ -49,22 +49,32 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     isLoading,
     updateContent,
     updateLanguage,
-    applyStarter,
     isSaving,
   } = useChallengeContent(sessionId, challengeId)
 
-  // Apply starter only once on first load if not started and no content
+  // Reset flags when challenge changes
   useEffect(() => {
-    if (isLoading || started === undefined || starterAppliedRef.current) return
+    isInitializedRef.current = false
+    starterAppliedForRef.current = ''  // Reset starter tracking
+  }, [challengeId, sessionId])
+
+  // Auto-apply starter using StarterCodeManager (prevents multiple applications)
+  useEffect(() => {
+    if (isLoading || !language) return
     
-    // Delegate to StarterCodeManager
-    if (starterCodeManager.shouldApply(started, content)) {
-      console.log('[CodeEditor] ⭐ First load - applying starter')
-      starterAppliedRef.current = true
-      applyStarter()
+    // Create unique key for this challenge+language combination
+    const key = `${challengeId}-${language}`
+    if (starterAppliedForRef.current === key) {
+      return  // Already applied for this combination
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, started])
+    
+    // Use StarterCodeManager to decide if should apply
+    if (starterCodeManager.shouldApply(started, content)) {
+      starterAppliedForRef.current = key  // Mark as applied
+      const starter = starterCodeManager.getStarter(language)
+      updateContent(starter, true)  // Pass isStarter=true to save with started: false
+    }
+  }, [isLoading, content, language, started, challengeId, updateContent])
   
   // Update editor model directly when content changes from external source
   useEffect(() => {
@@ -78,17 +88,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     
     const currentValue = model.getValue()
     
-    console.log('[CodeEditor] Content changed:', {
-      contentLength: content.length,
-      currentValueLength: currentValue.length,
-      lastContentLength: lastContentRef.current.length,
-      isEqual: content === currentValue,
-      isLastContent: content === lastContentRef.current
-    })
-    
-    // Only update if content is different and didn't come from this editor
+    // Only update if content actually changed (prevents cursor jumps)
     if (content !== currentValue && content !== lastContentRef.current) {
-      console.log('[CodeEditor] 📥 Applying external content update from CRDT')
       
       // Delegate to EditorSyncController
       syncController.applyExternalUpdate(editor, content, () => {

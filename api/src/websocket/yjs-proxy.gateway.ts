@@ -1,5 +1,5 @@
 import { Server as HTTPServer, IncomingMessage } from 'http'
-import { WebSocketServer } from 'ws'
+import { WebSocketServer, WebSocket } from 'ws'
 
 /**
  * Proxy WebSocket gateway that relays connections to the internal Yjs relay server
@@ -32,20 +32,27 @@ export class YjsProxyGateway {
     const clientUrl = req.url || ''
     const relayUrlWithQuery = `${this.relayUrl}${clientUrl}`
 
-    console.log(`[YjsProxy] New client connection, proxying to: ${relayUrlWithQuery.split('?')[0]}`)
+    console.log(`[YjsProxy] New client connection (state=${clientWs.readyState}), proxying to: ${relayUrlWithQuery.split('?')[0]}?[params]`)
 
     try {
-      // Dynamic import of ws to create relay connection
-      const WebSocket = require('ws')
       const relayWs = new WebSocket(relayUrlWithQuery)
+      let relayReady = false
+
+      console.log(`[YjsProxy] Relay URL: ${relayUrlWithQuery}`)
+      console.log(`[YjsProxy] Client initial state: ${clientWs.readyState}`)
 
       relayWs.on('open', () => {
-        console.log(`[YjsProxy] ✅ Connected to relay`)
+        console.log(`[YjsProxy] ✅ Relay connected (relay.state=${relayWs.readyState}, client.state=${clientWs.readyState})`)
+        relayReady = true
       })
 
       relayWs.on('message', (data: any) => {
-        if (clientWs.readyState === WebSocket.OPEN) {
+        console.log(`[YjsProxy] Relay->Client: ${data.length} bytes, relay.state=${relayWs.readyState}, client.state=${clientWs.readyState}`)
+        if (clientWs.readyState === WebSocket.OPEN && relayReady) {
+          console.log(`[YjsProxy] ✅ Forwarding to client...`)
           clientWs.send(data)
+        } else {
+          console.log(`[YjsProxy] ⚠️  CANNOT forward: client.state=${clientWs.readyState} (need OPEN=1), relayReady=${relayReady}`)
         }
       })
 
@@ -56,14 +63,19 @@ export class YjsProxyGateway {
         }
       })
 
-      relayWs.on('close', () => {
-        console.log(`[YjsProxy] Relay connection closed`)
+      relayWs.on('close', (code: any) => {
+        console.log(`[YjsProxy] Relay closed (code=${code})`)
         if (clientWs.readyState === WebSocket.OPEN) {
-          clientWs.close(1000, 'Relay closed')
+          clientWs.close()
         }
       })
 
+      clientWs.on('open', () => {
+        console.log(`[YjsProxy] ✅ Client ready (state=${clientWs.readyState})`)
+      })
+
       clientWs.on('message', (data: any) => {
+        console.log(`[YjsProxy] Client->Relay: ${data.length} bytes`)
         if (relayWs.readyState === WebSocket.OPEN) {
           relayWs.send(data)
         }
@@ -76,8 +88,8 @@ export class YjsProxyGateway {
         }
       })
 
-      clientWs.on('close', () => {
-        console.log(`[YjsProxy] Client disconnected`)
+      clientWs.on('close', (code: any) => {
+        console.log(`[YjsProxy] Client closed (code=${code})`)
         if (relayWs.readyState === WebSocket.OPEN) {
           relayWs.close()
         }

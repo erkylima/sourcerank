@@ -33,8 +33,8 @@ if (!ENABLE_S3_SNAPSHOT && !fs.existsSync(LOCAL_SNAPSHOT_DIR)) {
 // Each combination gets its own Y.Doc with a Y.Map containing content keys
 const sessions = new Map() // key -> { doc: Y.Doc, clients: Set<ws>, updatesSinceSnapshot: number }
 
-function getSessionKey(sessionId, challengeId, contentType = 'default') {
-  return `${sessionId}:${challengeId}:${contentType}`
+function getSessionKey(sessionId, challengeId, contentType = 'default', language = 'default') {
+  return `${sessionId}:${challengeId}:${contentType}:${language}`
 }
 
 async function loadSnapshotFromS3(sessionKey) {
@@ -95,8 +95,8 @@ function getSession(sessionId, challengeId, contentType = 'default') {
   return sessions.get(key)
 }
 
-async function getSessionWithSnapshot(sessionId, challengeId, contentType = 'default') {
-  const key = getSessionKey(sessionId, challengeId, contentType)
+async function getSessionWithSnapshot(sessionId, challengeId, contentType = 'default', language = 'default') {
+  const key = getSessionKey(sessionId, challengeId, contentType, language)
   
   if (!sessions.has(key)) {
     const doc = new Y.Doc()
@@ -165,12 +165,12 @@ function startServer() {
   // HTTP endpoint to force save snapshot (called when switching challenges)
   app.post('/snapshot', async (req, res) => {
     try {
-      const { sessionId, challengeId, contentType } = req.body
+      const { sessionId, challengeId, contentType, language } = req.body
       if (!sessionId || !challengeId) {
         return res.status(400).json({ error: 'Missing sessionId or challengeId' })
       }
       
-      const key = getSessionKey(sessionId, challengeId, contentType || 'default')
+      const key = getSessionKey(sessionId, challengeId, contentType || 'default', language || 'default')
       const session = sessions.get(key)
       
       if (!session) {
@@ -194,9 +194,10 @@ function startServer() {
     const sessionId = url.searchParams.get('sessionId')
     const challengeId = url.searchParams.get('challengeId') || 'default'
     const contentType = url.searchParams.get('contentType') || 'default'
+    const language = url.searchParams.get('language') || 'default'
     const token = url.searchParams.get('token') || ''
     
-    console.log('[yjs-relay] New WebSocket connection attempt:', { sessionId, challengeId, contentType, hasToken: !!token })
+    console.log('[yjs-relay] New WebSocket connection attempt:', { sessionId, challengeId, contentType, language, hasToken: !!token })
     
     if (!sessionId) {
       console.log('[yjs-relay] ❌ Connection rejected: Missing sessionId')
@@ -215,10 +216,10 @@ function startServer() {
       return
     }
 
-    console.log('[yjs-relay] ✅ Connection accepted for:', { sessionId, challengeId, contentType, userId: meta.userId })
+    console.log('[yjs-relay] ✅ Connection accepted for:', { sessionId, challengeId, contentType, language, userId: meta.userId })
 
     // Get or create session with S3 snapshot recovery
-    getSessionWithSnapshot(sessionId, challengeId, contentType).then((session) => {
+    getSessionWithSnapshot(sessionId, challengeId, contentType, language).then((session) => {
       const wasEmpty = session.doc.getArray('_isFirstClient') === undefined // Check if doc has content
       const docState = Y.encodeStateAsUpdate(session.doc)
       

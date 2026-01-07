@@ -14,17 +14,29 @@ import crdtSyncService from '@/services/crdt-sync.service'
 
 export class HybridContentRepository implements ContentRepository {
   /**
+   * Get preferred language for a challenge (most recently used)
+   */
+  async getPreferredLanguage(
+    sessionId: string,
+    challengeId: number
+  ): Promise<string> {
+    return await sessionContentService.getPreferredLanguage(sessionId, challengeId)
+  }
+
+  /**
    * Load content from database
    */
   async load(
     sessionId: string,
     challengeId: number,
-    contentType: string
+    contentType: string,
+    language: string
   ): Promise<ChallengeContentData> {
     return await sessionContentService.loadChallengeContent(
       sessionId,
       challengeId,
-      contentType
+      contentType,
+      language
     )
   }
 
@@ -36,14 +48,16 @@ export class HybridContentRepository implements ContentRepository {
     challengeId: number,
     content: string,
     language: string,
-    contentType: string
+    contentType: string,
+    started?: boolean
   ): Promise<void> {
     await sessionContentService.saveChallengeContent(
       sessionId,
       challengeId,
       content,
       language,
-      contentType
+      contentType,
+      started
     )
   }
 
@@ -54,12 +68,14 @@ export class HybridContentRepository implements ContentRepository {
     sessionId: string,
     challengeId: string,
     contentType: string,
+    language: string,
     callback: ContentUpdateCallback
   ): UnsubscribeFunction {
     return crdtSyncService.subscribe(
       sessionId,
       challengeId,
       contentType,
+      language,
       callback
     )
   }

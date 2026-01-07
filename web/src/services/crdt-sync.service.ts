@@ -19,24 +19,22 @@ class CrdtSyncService {
   private connections = new Map<string, CrdtConnection>()
 
   /**
-   * Subscribe to CRDT updates for a challenge
+   * Subscribe to CRDT updates for a challenge with specific language
    * Returns unsubscribe function
    */
   subscribe(
     sessionId: string,
     challengeId: string,
     contentType: string,
+    language: string,
     onUpdate: UpdateCallback
   ): () => void {
-    const key = `${sessionId}:${challengeId}:${contentType}`
+    const key = `${sessionId}:${challengeId}:${contentType}:${language}`
     
     // Reuse existing connection if available
     if (this.connections.has(key)) {
-      console.log('[CrdtSyncService] Reusing existing connection:', key)
       return this.connections.get(key)!.unsubscribe
     }
-
-    console.log('[CrdtSyncService] Creating new CRDT connection:', key)
 
     // Create Y.Doc
     const doc = new Y.Doc()
@@ -63,10 +61,13 @@ class CrdtSyncService {
     wsUrl.searchParams.set('sessionId', sessionId)
     wsUrl.searchParams.set('challengeId', challengeId)
     wsUrl.searchParams.set('contentType', contentType)
+    wsUrl.searchParams.set('language', language)  // Add language parameter
     wsUrl.searchParams.set('token', token)
 
+    console.log(`[CrdtSyncService] Connecting to: ${wsUrl.toString().split('?')[0]}?[params]`)
     const ws = new WebSocket(wsUrl.toString())
     ws.binaryType = 'arraybuffer'
+    console.log(`[CrdtSyncService] WebSocket created (readyState=${ws.readyState})`)
 
     // Send local changes to relay
     const handleDocUpdate = (update: Uint8Array, origin?: string) => {
@@ -80,31 +81,38 @@ class CrdtSyncService {
 
     // Receive remote changes from relay
     ws.onmessage = (event) => {
-      if (!event.data) return
+      console.log(`[CrdtSyncService] Received message: ${event.data?.byteLength || event.data?.length || 'unknown'} bytes`)
+      if (!event.data) {
+        console.log(`[CrdtSyncService] Empty data, skipping`)
+        return
+      }
       try {
+        console.log(`[CrdtSyncService] Parsing Uint8Array...`)
         const update = new Uint8Array(event.data as ArrayBuffer)
+        console.log(`[CrdtSyncService] Applying update: ${update.length} bytes`)
         Y.applyUpdate(doc, update, 'relay')
+        console.log(`[CrdtSyncService] ✅ Update applied successfully`)
       } catch (err) {
         console.error('[CrdtSyncService] Failed to apply update:', err)
+        console.error('[CrdtSyncService] Error details:', (err as any).message, (err as any).stack)
       }
     }
 
     ws.onopen = () => {
-      console.log('[CrdtSyncService] ✅ WebSocket connected:', key)
+      console.log(`[CrdtSyncService] ✅ WebSocket OPEN`)
     }
 
     ws.onerror = (err) => {
       console.error('[CrdtSyncService] WebSocket error:', err)
     }
 
-    ws.onclose = () => {
-      console.log('[CrdtSyncService] WebSocket closed:', key)
+    ws.onclose = (event) => {
+      console.log(`[CrdtSyncService] WebSocket CLOSED (code=${event.code}, reason='${event.reason}')`)
       this.connections.delete(key)
     }
 
     // Unsubscribe function
     const unsubscribe = () => {
-      console.log('[CrdtSyncService] Unsubscribing:', key)
       ytext.unobserve(handleContentUpdate)
       ymeta.unobserve(handleContentUpdate)
       doc.off('update', handleDocUpdate)
@@ -129,12 +137,11 @@ class CrdtSyncService {
     content: string,
     language: string
   ): void {
-    const key = `${sessionId}:${challengeId}:${contentType}`
+    const key = `${sessionId}:${challengeId}:${contentType}:${language}`
     const connection = this.connections.get(key)
 
     if (!connection) {
-      console.warn('[CrdtSyncService] No connection found for:', key)
-      return
+      return  // No connection, skip
     }
 
     const { doc, ytext, ymeta } = connection
@@ -160,7 +167,6 @@ class CrdtSyncService {
    * Close all connections (cleanup on unmount)
    */
   closeAll(): void {
-    console.log('[CrdtSyncService] Closing all connections')
     this.connections.forEach((conn) => conn.unsubscribe())
     this.connections.clear()
   }

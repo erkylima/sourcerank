@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import { ContentRepository, ChallengeContentData } from '@/repositories/ContentRepository'
 import { hybridContentRepository } from '@/repositories/HybridContentRepository'
 import { starterCodeManager } from '@/utils/StarterCodeManager'
@@ -34,14 +34,41 @@ export function useChallengeContent(
   const queryClient = useQueryClient()
   const normalizedChallengeId = String(challengeId || '')
   
-  const queryKey = ['challenge-content', sessionId, normalizedChallengeId, contentType]
+  // Track current language in state (reactive)
+  const [currentLanguage, setCurrentLanguage] = useState<string>('python')
+  const [isLanguageInitialized, setIsLanguageInitialized] = useState(false)
   
   // Refs to prevent feedback loops
   const localContentRef = useRef<string>('')
   const localLanguageRef = useRef<string>('python')
   const saveTimeoutRef = useRef<number | null>(null)
+  
+  // Fetch preferred language when challenge changes
+  useEffect(() => {
+    if (!sessionId || !normalizedChallengeId || normalizedChallengeId === 'unknown') {
+      return
+    }
 
-  // Query: Load from DB
+    setIsLanguageInitialized(false)
+    
+    repository.getPreferredLanguage(sessionId, parseInt(normalizedChallengeId))
+      .then(language => {
+        setCurrentLanguage(language)
+        localLanguageRef.current = language
+        setIsLanguageInitialized(true)
+      })
+      .catch(err => {
+        console.warn('[useChallengeContent] ⚠️ Failed to get preferred language:', err)
+        setCurrentLanguage('python')
+        localLanguageRef.current = 'python'
+        setIsLanguageInitialized(true)
+      })
+  }, [sessionId, normalizedChallengeId, repository])
+  
+  // QueryKey includes language for proper cache separation
+  const queryKey = ['challenge-content', sessionId, normalizedChallengeId, contentType, currentLanguage]
+
+  // Query: Load from DB with language
   const { data, isLoading, error } = useQuery<ChallengeContentData>({
     queryKey,
     queryFn: async () => {
@@ -49,51 +76,48 @@ export function useChallengeContent(
         throw new Error('Invalid session or challenge ID')
       }
       
-      console.log('[useChallengeContent] Loading from repository:', { sessionId, challengeId: normalizedChallengeId })
       const loadedData = await repository.load(
         sessionId,
         parseInt(normalizedChallengeId),
-        contentType
+        contentType,
+        currentLanguage
       )
       
-      console.log('[useChallengeContent] Loaded data:', { 
-        started: loadedData.started, 
-        hasContent: !!loadedData.content,
-        language: loadedData.language 
-      })
+      // Validate language consistency
+      if (loadedData.language !== currentLanguage) {
+        console.error('[❌ DB] Language mismatch:', {
+          loaded: loadedData.language,
+          expected: currentLanguage
+        })
+      }
       
       return loadedData
     },
-    enabled: !!sessionId && !!normalizedChallengeId && normalizedChallengeId !== 'unknown',
+    enabled: !!sessionId && !!normalizedChallengeId && normalizedChallengeId !== 'unknown' && isLanguageInitialized,
     staleTime: Infinity,
   })
 
   // Mutation: Save to DB
   const saveMutation = useMutation({
-    mutationFn: async (newData: Partial<ChallengeContentData>) => {
+    mutationFn: async (newData: Partial<ChallengeContentData> & { isStarter?: boolean }) => {
       if (!sessionId || !normalizedChallengeId) {
         throw new Error('Invalid session or challenge ID')
       }
       
       const contentToSave = newData.content ?? data?.content ?? ''
       const languageToSave = newData.language ?? data?.language ?? 'python'
-      
-      console.log('[useChallengeContent] Saving to repository:', { 
-        sessionId, 
-        challengeId: normalizedChallengeId,
-        contentLength: contentToSave.length,
-        language: languageToSave 
-      })
+      const startedValue = newData.isStarter ? false : true  // Starter = false, normal content = true
       
       await repository.save(
         sessionId,
         parseInt(normalizedChallengeId),
         contentToSave,
         languageToSave,
-        contentType
+        contentType,
+        startedValue
       )
       
-      return { ...data, ...newData, started: true } as ChallengeContentData
+      return { ...data, ...newData, started: startedValue } as ChallengeContentData
     },
     
     // Optimistic update
@@ -101,11 +125,14 @@ export function useChallengeContent(
       await queryClient.cancelQueries({ queryKey })
       const previousData = queryClient.getQueryData<ChallengeContentData>(queryKey)
       
+      // Calculate correct started value based on isStarter
+      const startedValue = newData.isStarter ? false : true
+      
       // Optimistically update cache
       queryClient.setQueryData<ChallengeContentData>(queryKey, (old) => ({
         ...old!,
         ...newData,
-        started: true, // Mark as started when saving
+        started: startedValue,
       }))
       
       return { previousData }
@@ -120,12 +147,10 @@ export function useChallengeContent(
     },
     
     // Refetch on success
-    onSuccess: () => {
-      console.log('[useChallengeContent] ✅ Saved successfully')
-    },
+    onSuccess: () => {},  
   })
 
-  // Initialize refs when data loads
+  // Initialize refs when data loads (don't change currentLanguage - it's already set from preferred)
   useEffect(() => {
     if (data) {
       localContentRef.current = data.content
@@ -135,32 +160,35 @@ export function useChallengeContent(
   
   // Setup real-time sync (if enabled)
   useEffect(() => {
-    if (!enableRealtime || !sessionId || !normalizedChallengeId || normalizedChallengeId === 'unknown') {
-      return
+    if (!enableRealtime || !sessionId || !normalizedChallengeId || normalizedChallengeId === 'unknown' || !isLanguageInitialized) {
+      console.log('[useChallengeContent] Real-time sync skipped:', { enableRealtime, sessionId: !!sessionId, normalizedChallengeId, isLanguageInitialized })
+      return  // Guard: wait for language to be initialized first
     }
 
-    console.log('[useChallengeContent] Setting up real-time sync for:', normalizedChallengeId)
+    console.log('[useChallengeContent] Setting up real-time sync for:', { sessionId, normalizedChallengeId, contentType, currentLanguage })
 
     const unsubscribe = repository.subscribe(
       sessionId,
       normalizedChallengeId,
       contentType,
+      currentLanguage,
       (content, language) => {
         // Prevent echo: only update if different from local
         const isContentDifferent = content !== localContentRef.current
         const isLanguageDifferent = language !== localLanguageRef.current
         
         if (!isContentDifferent && !isLanguageDifferent) {
-          console.log('[useChallengeContent] 🔄 Ignoring echo from real-time sync')
-          return
+          return  // Ignore echo
         }
         
-        console.log('[useChallengeContent] 📥 Received real-time update:', { 
-          contentLength: content.length,
-          language,
-          isContentDifferent,
-          isLanguageDifferent
-        })
+        // CRITICAL: Only apply if language matches current context
+        if (language !== currentLanguage) {
+          console.warn('[⚠️ CRDT] Language mismatch - ignored:', {
+            received: language,
+            expected: currentLanguage
+          })
+          return
+        }
         
         // Update refs
         localContentRef.current = content
@@ -178,17 +206,18 @@ export function useChallengeContent(
     return () => {
       console.log('[useChallengeContent] Cleaning up real-time sync')
       unsubscribe()
-      
-      // Clear any pending saves
       if (saveTimeoutRef.current) {
         window.clearTimeout(saveTimeoutRef.current)
       }
     }
+    // IMPORTANT: Remove isLanguageInitialized from dependency array!
+    // It's only a guard condition, not a trigger for re-executing the effect.
+    // The effect should only run when session/challenge/content type changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, normalizedChallengeId, contentType, enableRealtime])
 
   // Helper functions
-  const updateContent = useCallback((content: string) => {
+  const updateContent = useCallback((content: string, isStarter: boolean = false) => {
     // Update local ref immediately
     localContentRef.current = content
     
@@ -199,13 +228,13 @@ export function useChallengeContent(
     }))
     
     // Publish to real-time sync immediately
-    if (enableRealtime && sessionId && normalizedChallengeId && data) {
+    if (enableRealtime && sessionId && normalizedChallengeId && currentLanguage) {
       repository.publish(
         sessionId,
         normalizedChallengeId,
         contentType,
         content,
-        data.language
+        currentLanguage
       )
     }
     
@@ -215,34 +244,16 @@ export function useChallengeContent(
     }
     
     saveTimeoutRef.current = window.setTimeout(() => {
-      saveMutation.mutate({ content })
+      saveMutation.mutate({ content, isStarter })
     }, debounceMs)
-  }, [sessionId, normalizedChallengeId, contentType, data, queryClient, queryKey, saveMutation])
+  }, [sessionId, normalizedChallengeId, contentType, currentLanguage, queryClient, queryKey, saveMutation, enableRealtime, repository, debounceMs])
 
   const updateLanguage = useCallback((language: string) => {
-    // Update local ref immediately
+    // Update state - this will trigger automatic refetch with new language
+    // CRDT will automatically reconnect with new language key (useEffect dependency)
+    setCurrentLanguage(language)
     localLanguageRef.current = language
-    
-    // Update cache immediately
-    queryClient.setQueryData<ChallengeContentData>(queryKey, (old) => ({
-      ...old!,
-      language,
-    }))
-    
-    // Publish to real-time sync immediately
-    if (enableRealtime && sessionId && normalizedChallengeId && data) {
-      repository.publish(
-        sessionId,
-        normalizedChallengeId,
-        contentType,
-        data.content,
-        language
-      )
-    }
-    
-    // Save to DB immediately (language changes are infrequent)
-    saveMutation.mutate({ language })
-  }, [sessionId, normalizedChallengeId, contentType, data, queryClient, queryKey, saveMutation, enableRealtime])
+  }, [])
 
   const applyStarter = useCallback((language?: string) => {
     const lang = language || data?.language || 'python'

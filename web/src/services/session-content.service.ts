@@ -11,17 +11,42 @@ export interface ChallengeContent {
 
 export class SessionContentService {
   /**
-   * Load content for a challenge from the database
+   * Get the preferred language for a challenge (most recently used)
    */
-  async loadChallengeContent(sessionId: string, challengeId: number, contentType: string = 'code'): Promise<ChallengeContent> {
+  async getPreferredLanguage(sessionId: string, challengeId: number): Promise<string> {
     try {
       const token = authService.getToken()
-      console.log('[sessionContentService] Loading content:', { sessionId, challengeId, contentType })
+      console.log('[sessionContentService] Getting preferred language:', { sessionId, challengeId })
+
+      const response = await axios.get(
+        `${API_BASE}/session-content/${sessionId}/challenges/${challengeId}/preferred-language`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        }
+      )
+
+      console.log('[sessionContentService] Preferred language:', response.data.language)
+      return response.data.language
+    } catch (err) {
+      console.warn('[sessionContentService] Error getting preferred language, defaulting to python:', err)
+      return 'python'
+    }
+  }
+
+  /**
+   * Load content for a challenge from the database
+   */
+  async loadChallengeContent(sessionId: string, challengeId: number, contentType: string = 'code', language: string = 'python'): Promise<ChallengeContent> {
+    try {
+      const token = authService.getToken()
+      console.log('[sessionContentService] Loading content:', { sessionId, challengeId, contentType, language })
 
       const response = await axios.get(
         `${API_BASE}/session-content/${sessionId}/challenges/${challengeId}`,
         {
-          params: { contentType },
+          params: { contentType, language },
           headers: {
             'Authorization': `Bearer ${token}`,
           },
@@ -29,10 +54,10 @@ export class SessionContentService {
       )
 
       const content = response.data.content || ''
-      const language = response.data.language || 'python'
+      const responseLanguage = response.data.language || 'python'
       const started = response.data.started || false
-      console.log('[sessionContentService] ✅ Content loaded:', { length: content.length, language, started })
-      return { content, language, started }
+      console.log('[sessionContentService] ✅ Content loaded:', { length: content.length, language: responseLanguage, started })
+      return { content, language: responseLanguage, started }
     } catch (err: any) {
       console.error('[sessionContentService] ❌ Failed to load content:', err.response?.status, err.message)
       return { content: '', language: 'python', started: false }
@@ -47,15 +72,16 @@ export class SessionContentService {
     challengeId: number,
     content: string,
     language: string = 'python',
-    contentType: string = 'code'
+    contentType: string = 'code',
+    started?: boolean
   ): Promise<boolean> {
     try {
       const token = authService.getToken()
-      console.log('[sessionContentService] Saving content:', { sessionId, challengeId, contentType, language, contentLength: content.length })
+      console.log('[sessionContentService] Saving content:', { sessionId, challengeId, contentType, language, contentLength: content.length, started })
 
       await axios.post(
         `${API_BASE}/session-content/${sessionId}/challenges/${challengeId}`,
-        { content, contentType, language },
+        { content, contentType, language, started },
         {
           headers: {
             'Authorization': `Bearer ${token}`,

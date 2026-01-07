@@ -6,7 +6,6 @@ import ChallengeView from '@/components/Challenge/ChallengeView'
 import ChallengeNavigator from '@/components/Challenge/ChallengeNavigator'
 import { Challenge } from '@/types'
 import { useUIStore } from '@/stores/useUIStore'
-import { starterCodeManager } from '@/utils/StarterCodeManager'
 import apiService from '@/services/api'
 import { executionService } from '@/services/execution.service'
 import '@/styles/Interview.css'
@@ -89,15 +88,7 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
         console.log('[InterviewPage] 📥 Received language change from peer:', payload.language)
         setLanguage(payload.language)
         
-        // Delegate to StarterCodeManager
-        if (starterCodeManager.shouldApplyOnLanguageChange(currentStartedRef.current, true)) {
-          const starter = starterCodeManager.getStarter(payload.language)
-          console.log('[InterviewPage] Applying starter for language:', payload.language)
-          if (updateContentRef.current) {
-            updateContentRef.current(starter)
-          }
-        }
-        
+        // Update language - hook will reload content for this language
         if (updateLanguageRef.current) {
           updateLanguageRef.current(payload.language)
         }
@@ -151,27 +142,12 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
 
   // Handle language change with starter logic
   const handleLanguageChange = useCallback((newLanguage: string) => {
-    console.log('[InterviewPage] 🔄 Local language change:', { 
-      from: language, 
-      to: newLanguage,
-      started: currentStartedRef.current 
-    })
+    console.log('[InterviewPage] 🔄 Language change:', { from: language, to: newLanguage })
     
     setLanguage(newLanguage)
     
-    // Delegate to StarterCodeManager
-    if (starterCodeManager.shouldApplyOnLanguageChange(currentStartedRef.current, true)) {
-      const starter = starterCodeManager.getStarter(newLanguage)
-      console.log('[InterviewPage] Applying starter code for:', newLanguage)
-      
-      if (updateContentRef.current) {
-        updateContentRef.current(starter)
-      }
-    } else {
-      console.log('[InterviewPage] Challenge already started, NOT applying starter')
-    }
-    
-    // Update language via CRDT
+    // Update language - hook will reload content for this language
+    // If no content exists for this language → CodeEditor auto-applies starter
     if (updateLanguageRef.current) {
       updateLanguageRef.current(newLanguage)
     }
