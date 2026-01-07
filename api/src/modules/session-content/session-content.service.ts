@@ -15,11 +15,11 @@ export class SessionContentService {
 
     if (result.rows.length === 0) {
       console.log('[SessionContentService] ℹ️ No content found, returning empty')
-      return { sessionId, challengeId, contentType, content: '', language: 'python' }
+      return { sessionId, challengeId, contentType, content: '', language: 'python', started: false }
     }
 
     const row = result.rows[0]
-    console.log('[SessionContentService] ✅ Content loaded:', { id: row.id, contentLength: row.content.length, language: row.language })
+    console.log('[SessionContentService] ✅ Content loaded:', { id: row.id, contentLength: row.content.length, language: row.language, started: row.started })
     return {
       id: row.id,
       sessionId: row.session_id,
@@ -27,6 +27,7 @@ export class SessionContentService {
       contentType: row.content_type,
       content: row.content,
       language: row.language,
+      started: row.started || false,
       updatedAt: row.updated_at
     }
   }
@@ -53,21 +54,22 @@ export class SessionContentService {
         contentType,
         content,
         language,
+        started: false,
         updatedAt: new Date().toISOString()
       }
     }
     
     const result = await query(
-      `INSERT INTO session_challenge_content (session_id, challenge_id, content_type, content, language, updated_at)
-       VALUES ($1, $2, $3, $4, $5, NOW())
+      `INSERT INTO session_challenge_content (session_id, challenge_id, content_type, content, language, started, updated_at)
+       VALUES ($1, $2, $3, $4, $5, true, NOW())
        ON CONFLICT (session_id, challenge_id, content_type) 
-       DO UPDATE SET content = $4, language = $5, updated_at = NOW()
+       DO UPDATE SET content = $4, language = $5, started = true, updated_at = NOW()
        RETURNING *`,
       [sessionId, challengeId, contentType, content, language]
     )
 
     const row = result.rows[0]
-    console.log('[SessionContentService] ✅ Content saved:', { id: row.id, language: row.language, contentLength: row.content.length })
+    console.log('[SessionContentService] ✅ Content saved:', { id: row.id, language: row.language, contentLength: row.content.length, started: row.started })
     return {
       id: row.id,
       sessionId: row.session_id,
@@ -75,6 +77,7 @@ export class SessionContentService {
       contentType: row.content_type,
       content: row.content,
       language: row.language,
+      started: row.started,
       updatedAt: row.updated_at
     }
   }

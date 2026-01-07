@@ -118,6 +118,9 @@ export const initializeDatabase = async () => {
 
       -- Add language column if it doesn't exist
       ALTER TABLE session_challenge_content ADD COLUMN IF NOT EXISTS language VARCHAR(50) DEFAULT 'python';
+      
+      -- Add started column to track if challenge was initiated
+      ALTER TABLE session_challenge_content ADD COLUMN IF NOT EXISTS started BOOLEAN DEFAULT false;
 
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
       CREATE INDEX IF NOT EXISTS idx_challenges_created_by ON challenges(created_by);

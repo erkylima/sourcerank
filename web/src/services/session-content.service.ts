@@ -6,6 +6,7 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 export interface ChallengeContent {
   content: string
   language: string
+  started: boolean
 }
 
 export class SessionContentService {
@@ -29,11 +30,12 @@ export class SessionContentService {
 
       const content = response.data.content || ''
       const language = response.data.language || 'python'
-      console.log('[sessionContentService] ✅ Content loaded:', { length: content.length, language })
-      return { content, language }
+      const started = response.data.started || false
+      console.log('[sessionContentService] ✅ Content loaded:', { length: content.length, language, started })
+      return { content, language, started }
     } catch (err: any) {
       console.error('[sessionContentService] ❌ Failed to load content:', err.response?.status, err.message)
-      return { content: '', language: 'python' }
+      return { content: '', language: 'python', started: false }
     }
   }
 
