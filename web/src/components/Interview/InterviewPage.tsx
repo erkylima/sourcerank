@@ -47,7 +47,14 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
     const load = async () => {
       try {
         const response = await apiService.getChallenges()
-        setChallenges(response.data.challenges || [])
+        const loadedChallenges = response.data.challenges || []
+        setChallenges(loadedChallenges)
+        
+        // Validate currentChallengeIndex
+        if (currentChallengeIndex >= loadedChallenges.length) {
+          console.warn('[InterviewPage] Current challenge index out of bounds, resetting to 0')
+          setCurrentChallengeIndex(0)
+        }
       } catch (err) {
         console.error('Failed to load challenges:', err)
       }
@@ -262,15 +269,19 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
         </div>
 
         <div className="editor-section">
-          <CodeEditor
-            sessionId={sessionId}
-            challengeId={currentChallenge?.id}
-            onLanguageChange={setLanguage}
-            onUpdateLanguageRef={(fn) => { updateLanguageRef.current = fn }}
-            onUpdateContentRef={(fn) => { updateContentRef.current = fn }}
-            onContentChange={(content) => { currentCodeRef.current = content }}
-            onStartedChange={(started) => { currentStartedRef.current = started }}
-          />
+          {currentChallenge ? (
+            <CodeEditor
+              sessionId={sessionId}
+              challengeId={currentChallenge.id}
+              onLanguageChange={setLanguage}
+              onUpdateLanguageRef={(fn) => { updateLanguageRef.current = fn }}
+              onUpdateContentRef={(fn) => { updateContentRef.current = fn }}
+              onContentChange={(content) => { currentCodeRef.current = content }}
+              onStartedChange={(started) => { currentStartedRef.current = started }}
+            />
+          ) : (
+            <div className="editor-loading">Loading challenge...</div>
+          )}
           {showExecutionTerminal && <ExecutionTerminal logs={logs} isExecuting={isExecuting} />}
         </div>
       </div>

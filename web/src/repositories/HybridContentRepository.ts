@@ -24,6 +24,21 @@ export class HybridContentRepository implements ContentRepository {
   }
 
   /**
+   * Set preferred language for a challenge
+   */
+  async setPreferredLanguage(
+    sessionId: string,
+    challengeId: number,
+    language: string
+  ): Promise<void> {
+    // This is done implicitly when content is saved
+    // The backend records which language was last used for this challenge
+    // For now, we don't need explicit call since save() already handles it
+    // But we add this for future extensibility
+    console.log('[HybridContentRepository] Preferred language for challenge updated:', { challengeId, language })
+  }
+
+  /**
    * Load content from database
    */
   async load(

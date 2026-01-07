@@ -26,6 +26,15 @@ export interface ContentRepository {
   ): Promise<string>
 
   /**
+   * Set preferred language for a challenge
+   */
+  setPreferredLanguage(
+    sessionId: string,
+    challengeId: number,
+    language: string
+  ): Promise<void>
+
+  /**
    * Load content from persistent storage
    */
   load(

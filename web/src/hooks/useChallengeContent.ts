@@ -42,6 +42,8 @@ export function useChallengeContent(
   const localContentRef = useRef<string>('')
   const localLanguageRef = useRef<string>('python')
   const saveTimeoutRef = useRef<number | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const isManualLanguageChangeRef = useRef<boolean>(false)  // Track if user manually changed language
   
   // Fetch preferred language when challenge changes
   useEffect(() => {
@@ -49,20 +51,46 @@ export function useChallengeContent(
       return
     }
 
+    // Reset manual language change flag when challenge changes
+    // Next time we load language from server, accept it (don't override)
+    isManualLanguageChangeRef.current = false
+
+    // Cancel any pending language fetch from previous challenge
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    
+    abortControllerRef.current = new AbortController()
+    const currentAbort = abortControllerRef.current
+    
     setIsLanguageInitialized(false)
     
     repository.getPreferredLanguage(sessionId, parseInt(normalizedChallengeId))
       .then(language => {
-        setCurrentLanguage(language)
-        localLanguageRef.current = language
-        setIsLanguageInitialized(true)
+        // Only update if this request wasn't cancelled
+        if (!currentAbort.signal.aborted) {
+          console.log('[useChallengeContent] ✅ Preferred language loaded:', language)
+          setCurrentLanguage(language)
+          localLanguageRef.current = language
+          setIsLanguageInitialized(true)
+        }
       })
       .catch(err => {
-        console.warn('[useChallengeContent] ⚠️ Failed to get preferred language:', err)
-        setCurrentLanguage('python')
-        localLanguageRef.current = 'python'
-        setIsLanguageInitialized(true)
+        // Only update if this request wasn't cancelled
+        if (!currentAbort.signal.aborted) {
+          console.warn('[useChallengeContent] ⚠️ Failed to get preferred language:', err)
+          setCurrentLanguage('python')
+          localLanguageRef.current = 'python'
+          setIsLanguageInitialized(true)
+        }
       })
+    
+    // Cleanup on unmount
+    return () => {
+      if (currentAbort) {
+        currentAbort.abort()
+      }
+    }
   }, [sessionId, normalizedChallengeId, repository])
   
   // QueryKey includes language for proper cache separation
@@ -182,10 +210,11 @@ export function useChallengeContent(
         }
         
         // CRITICAL: Only apply if language matches current context
-        if (language !== currentLanguage) {
+        // Use the ref, not state, to avoid stale closures
+        if (language !== localLanguageRef.current) {
           console.warn('[⚠️ CRDT] Language mismatch - ignored:', {
             received: language,
-            expected: currentLanguage
+            expected: localLanguageRef.current
           })
           return
         }
@@ -210,11 +239,39 @@ export function useChallengeContent(
         window.clearTimeout(saveTimeoutRef.current)
       }
     }
-    // IMPORTANT: Remove isLanguageInitialized from dependency array!
-    // It's only a guard condition, not a trigger for re-executing the effect.
-    // The effect should only run when session/challenge/content type changes.
+    // DO NOT include currentLanguage in deps!
+    // The CRDT subscription is keyed by language on the server side,
+    // so when you change currentLanguage, you need to also refetch the query (which is separate).
+    // The subscription should only re-run when session/challenge/content type changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, normalizedChallengeId, contentType, enableRealtime])
+
+  // Save content when leaving challenge/language combination
+  useEffect(() => {
+    return () => {
+      // Cleanup: Save the current content when unmounting or before switching challenge
+      if (sessionId && normalizedChallengeId && normalizedChallengeId !== 'unknown' && localContentRef.current) {
+        console.log('[useChallengeContent] 💾 Saving content on cleanup for challenge:', {
+          sessionId,
+          normalizedChallengeId,
+          language: localLanguageRef.current,
+          contentLength: localContentRef.current.length
+        })
+        
+        // Use repository to save directly, bypassing mutation (fire-and-forget)
+        repository.save(
+          sessionId,
+          parseInt(normalizedChallengeId),
+          localContentRef.current,
+          localLanguageRef.current,
+          contentType,
+          true  // Save as started:true
+        ).catch(err => {
+          console.warn('[useChallengeContent] ⚠️ Failed to save on cleanup:', err)
+        })
+      }
+    }
+  }, [sessionId, normalizedChallengeId, contentType, repository])
 
   // Helper functions
   const updateContent = useCallback((content: string, isStarter: boolean = false) => {
@@ -249,11 +306,36 @@ export function useChallengeContent(
   }, [sessionId, normalizedChallengeId, contentType, currentLanguage, queryClient, queryKey, saveMutation, enableRealtime, repository, debounceMs])
 
   const updateLanguage = useCallback((language: string) => {
-    // Update state - this will trigger automatic refetch with new language
-    // CRDT will automatically reconnect with new language key (useEffect dependency)
+    if (language === currentLanguage) {
+      console.log('[useChallengeContent] Language already set to:', language)
+      return  // No change needed
+    }
+    
+    console.log('[useChallengeContent] User changed language from', currentLanguage, 'to:', language)
+    
+    // Mark this as a manual change (don't override with preferred language on next desafio change)
+    isManualLanguageChangeRef.current = true
+    
+    // IMPORTANT: Save current content with old language BEFORE switching
+    // This registers the old language as being used (for preferred language tracking)
+    if (sessionId && normalizedChallengeId && normalizedChallengeId !== 'unknown' && localContentRef.current) {
+      const oldLanguage = currentLanguage
+      console.log('[useChallengeContent] Saving content for old language:', oldLanguage, 'with length:', localContentRef.current.length)
+      saveMutation.mutate({ 
+        content: localContentRef.current, 
+        language: oldLanguage,
+        isStarter: false 
+      })
+    }
+    
+    // Invalidate old query cache for previous language
+    const oldQueryKey = ['challenge-content', sessionId, normalizedChallengeId, contentType, currentLanguage]
+    queryClient.removeQueries({ queryKey: oldQueryKey })
+    
+    // Update state to new language - this will trigger the query to fetch for new language
     setCurrentLanguage(language)
     localLanguageRef.current = language
-  }, [])
+  }, [sessionId, normalizedChallengeId, repository, currentLanguage, contentType, queryClient, saveMutation])
 
   const applyStarter = useCallback((language?: string) => {
     const lang = language || data?.language || 'python'
