@@ -22,6 +22,9 @@ export class SessionContentService {
 
   /**
    * Get content for a specific challenge in a session and language
+   * Returns starter if:
+   * 1. Challenge never started (started=false), OR
+   * 2. Challenge started but no content for this language (means language just switched)
    */
   async getChallengeContent(sessionId: string, challengeId: number, contentType: string = 'code', language: string = 'python') {
     console.log('[SessionContentService] Getting content for:', { sessionId, challengeId, contentType, language })
@@ -32,12 +35,44 @@ export class SessionContentService {
       [sessionId, challengeId, contentType, language]
     )
 
+    // Check if record exists
     if (result.rows.length === 0) {
       console.log('[SessionContentService] ℹ️ No content found for language:', language)
-      return { sessionId, challengeId, contentType, content: '', language, started: false }
+      
+      // Case 1: No record = never started, return starter
+      // Case 2: If record exists with started=false, return starter
+      const starter = await this.getStarterCode(challengeId, language)
+      return { 
+        sessionId, 
+        challengeId, 
+        contentType, 
+        content: starter,
+        language, 
+        started: false,
+        isStarter: true
+      }
     }
 
     const row = result.rows[0]
+    
+    // Case 3: If challenge started but content empty (just switched language), return starter
+    if (row.started && (!row.content || row.content.trim() === '')) {
+      console.log('[SessionContentService] ℹ️ Challenge started but no content for language, returning starter:', { language })
+      const starter = await this.getStarterCode(challengeId, language)
+      return {
+        id: row.id,
+        sessionId: row.session_id,
+        challengeId: row.challenge_id,
+        contentType: row.content_type,
+        content: starter,
+        language: row.language,
+        started: row.started,
+        isStarter: true,
+        updatedAt: row.updated_at
+      }
+    }
+
+    // Case 4: Challenge has content, return it
     console.log('[SessionContentService] ✅ Content loaded:', { id: row.id, contentLength: row.content.length, language: row.language, started: row.started })
     return {
       id: row.id,
@@ -47,7 +82,32 @@ export class SessionContentService {
       content: row.content,
       language: row.language,
       started: row.started || false,
+      isStarter: false,
       updatedAt: row.updated_at
+    }
+  }
+
+  /**
+   * Get starter code for a challenge and language from database
+   */
+  private async getStarterCode(challengeId: number, language: string): Promise<string> {
+    try {
+      const result = await query(
+        `SELECT content FROM starter_codes 
+         WHERE challenge_id = $1 AND language = $2`,
+        [challengeId, language]
+      )
+      
+      if (result.rows.length > 0) {
+        console.log('[SessionContentService] ✅ Starter code found for:', { challengeId, language })
+        return result.rows[0].content
+      }
+      
+      console.log('[SessionContentService] ⚠️ No starter code found, returning empty:', { challengeId, language })
+      return ''
+    } catch (error) {
+      console.error('[SessionContentService] Error fetching starter code:', error)
+      return ''
     }
   }
 

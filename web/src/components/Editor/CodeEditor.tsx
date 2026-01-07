@@ -7,6 +7,7 @@ import '@/styles/Editor.css'
 interface CodeEditorProps {
   sessionId?: string
   challengeId?: string | number
+  language?: string
   onLanguageChange?: (language: string) => void
   onUpdateLanguageRef?: (fn: (lang: string) => void) => void
   onUpdateContentRef?: (fn: (content: string) => void) => void
@@ -24,6 +25,7 @@ interface CodeEditorProps {
 export const CodeEditor: React.FC<CodeEditorProps> = ({
   sessionId,
   challengeId,
+  language = 'python',
   onLanguageChange,
   onUpdateLanguageRef,
   onUpdateContentRef,
@@ -42,13 +44,17 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   // Use new hook with TanStack Query + CRDT
   const {
     content,
-    language,
+    language: responseLanguage,
     started,
     isLoading,
     updateContent,
     updateLanguage,
     isSaving,
-  } = useChallengeContent(sessionId, challengeId)
+  } = useChallengeContent(sessionId, challengeId, 'code', language)
+
+  // Use content directly from CRDT (no transformation)
+  // Starter logic removed - was breaking CRDT sync
+  const displayContent = content
 
   // Reset flags when challenge changes
   useEffect(() => {
@@ -99,9 +105,9 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   // Notify parent when content changes
   useEffect(() => {
     if (onContentChange) {
-      onContentChange(content)
+      onContentChange(displayContent)
     }
-  }, [content, onContentChange])
+  }, [displayContent, onContentChange])
 
   // Notify parent when started flag changes
   useEffect(() => {
@@ -112,12 +118,12 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
 
   // Notify parent when language changes
   useEffect(() => {
-    if (language && language !== prevLanguageRef.current && onLanguageChange) {
-      console.log('[CodeEditor] Language changed:', { from: prevLanguageRef.current, to: language })
-      onLanguageChange(language)
-      prevLanguageRef.current = language
+    if (responseLanguage && responseLanguage !== prevLanguageRef.current && onLanguageChange) {
+      console.log('[CodeEditor] Language changed:', { from: prevLanguageRef.current, to: responseLanguage })
+      onLanguageChange(responseLanguage)
+      prevLanguageRef.current = responseLanguage
     }
-  }, [language, onLanguageChange])
+  }, [responseLanguage, onLanguageChange])
 
   // Handle editor changes
   const handleEditorChange = (value: string | undefined) => {
@@ -179,7 +185,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         key={`${sessionId}-${challengeId}`}
         height="100%"
         language={language}
-        defaultValue={content}
+        defaultValue={displayContent}
         onChange={handleEditorChange}
         onMount={handleEditorDidMount}
         theme="vs-dark"

@@ -42,25 +42,53 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
   const [logs, setLogs] = useState('')
   const [isExecuting, setIsExecuting] = useState(false)
 
-  // Load challenges
+  // Load challenges AND recover/initialize current challenge
   useEffect(() => {
     const load = async () => {
       try {
-        const response = await apiService.getChallenges()
-        const loadedChallenges = response.data.challenges || []
-        setChallenges(loadedChallenges)
+        console.log('[InterviewPage] Loading challenges and current challenge state...')
         
-        // Validate currentChallengeIndex
-        if (currentChallengeIndex >= loadedChallenges.length) {
-          console.warn('[InterviewPage] Current challenge index out of bounds, resetting to 0')
+        // 1. Load all challenges
+        const challengeResponse = await apiService.getChallenges()
+        const loadedChallenges = challengeResponse.data.challenges || []
+        setChallenges(loadedChallenges)
+        console.log('[InterviewPage] Loaded challenges:', loadedChallenges.length)
+        
+        if (loadedChallenges.length === 0 || !sessionId) return
+        
+        // 2. Get current challenge from database
+        const sessionResponse = await apiService.getSession(sessionId)
+        const dbCurrentChallengeId = sessionResponse.data.session.current_challenge_id
+        
+        console.log('[InterviewPage] DB response:', sessionResponse.data)
+        console.log('[InterviewPage] DB current_challenge_id:', dbCurrentChallengeId)
+        
+        if (dbCurrentChallengeId) {
+          // Has saved challenge - use it
+          const challengeIndex = loadedChallenges.findIndex(c => c.id === dbCurrentChallengeId)
+          if (challengeIndex !== -1) {
+            console.log('[InterviewPage] Using saved challenge, index:', challengeIndex)
+            setCurrentChallengeIndex(challengeIndex)
+          } else {
+            // Saved challenge not found, default to first
+            console.log('[InterviewPage] Saved challenge not found, defaulting to 0')
+            setCurrentChallengeIndex(0)
+          }
+        } else {
+          // No saved challenge - save first one
+          const firstChallenge = loadedChallenges[0]
+          console.log('[InterviewPage] No saved challenge, saving first:', firstChallenge.id)
+          await apiService.updateSessionChallenge(sessionId, firstChallenge.id)
           setCurrentChallengeIndex(0)
         }
       } catch (err) {
-        console.error('Failed to load challenges:', err)
+        console.error('[InterviewPage] Error loading challenges:', err)
+        setCurrentChallengeIndex(0)
       }
     }
+    
     load()
-  }, [])
+  }, [sessionId])
 
   // Join session room
   useEffect(() => {
@@ -169,6 +197,21 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
   const handleNavigate = (newIndex: number) => {
     if (newIndex < 0 || newIndex >= challenges.length) return
 
+    // Force save current challenge content before navigating
+    if (updateContentRef.current && currentCodeRef.current && sessionId && currentChallenge) {
+      console.log('[InterviewPage] 💾 Force saving before navigate:', currentChallenge.id)
+      updateContentRef.current(currentCodeRef.current)
+    }
+
+    // Update current challenge in database for persistence on page reload
+    const newChallenge = challenges[newIndex]
+    if (newChallenge && sessionId) {
+      console.log('[InterviewPage] 📌 Updating current challenge in DB:', newChallenge.id)
+      apiService.updateSessionChallenge(sessionId, newChallenge.id).catch(err => {
+        console.error('[InterviewPage] Failed to update session challenge:', err)
+      })
+    }
+
     setCurrentChallengeIndex(newIndex)
     setLogs('')
 
@@ -273,6 +316,7 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
             <CodeEditor
               sessionId={sessionId}
               challengeId={currentChallenge.id}
+              language={language}
               onLanguageChange={setLanguage}
               onUpdateLanguageRef={(fn) => { updateLanguageRef.current = fn }}
               onUpdateContentRef={(fn) => { updateContentRef.current = fn }}

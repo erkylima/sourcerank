@@ -83,6 +83,7 @@ export class SessionService {
   }
 
   async updateCurrentChallenge(id: string, challengeId: string): Promise<Session> {
+    console.log('[SessionService] Updating current challenge:', { id, challengeId })
     const result = await query(
       'UPDATE sessions SET current_challenge_id = $1 WHERE id = $2 RETURNING *',
       [challengeId, id],
@@ -90,6 +91,7 @@ export class SessionService {
     if (result.rows.length === 0) {
       throw new Error('Session not found')
     }
+    console.log('[SessionService] ✅ Current challenge updated in DB:', { id, current_challenge_id: challengeId })
     return result.rows[0]
   }
 

@@ -76,14 +76,18 @@ export class SessionController {
       const { id } = req.params
       const { challengeId } = req.body
 
+      console.log('[SessionController] updateChallenge called:', { id, challengeId })
+
       if (!challengeId) {
         res.status(400).json({ error: 'Challenge ID is required' })
         return
       }
 
       const session = await sessionService.updateCurrentChallenge(id, challengeId)
+      console.log('[SessionController] ✅ Challenge updated:', { sessionId: id, challengeId })
       res.json({ session })
     } catch (error: any) {
+      console.error('[SessionController] ❌ Error updating challenge:', error.message)
       res.status(400).json({ error: error.message })
     }
   }

@@ -51,6 +51,8 @@ export const apiService = {
     axiosInstance.patch(`/sessions/${sessionId}/reject`, {}),
   endSession: (sessionId: string) =>
     axiosInstance.patch(`/sessions/${sessionId}/end`, {}),
+  updateSessionChallenge: (sessionId: string, challengeId: number) =>
+    axiosInstance.patch(`/sessions/${sessionId}/challenge`, { challengeId }),
 }
 
 export default apiService

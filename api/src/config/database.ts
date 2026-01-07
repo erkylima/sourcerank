@@ -138,6 +138,20 @@ export const initializeDatabase = async () => {
       -- Add started column to track if challenge was initiated
       ALTER TABLE session_challenge_content ADD COLUMN IF NOT EXISTS started BOOLEAN DEFAULT false;
 
+      -- Starter code templates for challenges
+      CREATE TABLE IF NOT EXISTS starter_codes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        challenge_id INTEGER NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,
+        language VARCHAR(50) NOT NULL,
+        content TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        CONSTRAINT unique_starter_code UNIQUE (challenge_id, language)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_starter_codes_challenge ON starter_codes(challenge_id);
+      CREATE INDEX IF NOT EXISTS idx_starter_codes_lookup ON starter_codes(challenge_id, language);
+
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
       CREATE INDEX IF NOT EXISTS idx_challenges_created_by ON challenges(created_by);
       CREATE INDEX IF NOT EXISTS idx_sessions_interviewer ON sessions(interviewer_id);
@@ -273,9 +287,128 @@ const seedChallenges = async () => {
       )
     }
 
+    // Seed starter codes
+    await seedStarterCodes()
+
     console.log(`✅ ${challenges.length} challenges seeded successfully`)
   } catch (error) {
     console.error('Error seeding challenges:', error)
+    // Don't throw - seeding is optional
+  }
+}
+
+const seedStarterCodes = async () => {
+  try {
+    // Check if starters already exist
+    const result = await query('SELECT COUNT(*) as count FROM starter_codes')
+    const count = parseInt(result.rows[0].count, 10)
+    
+    if (count > 0) {
+      console.log(`✅ Starter codes already seeded (${count} starters found)`)
+      return
+    }
+
+    // Get all challenges
+    const challengesResult = await query('SELECT id FROM challenges ORDER BY id')
+    
+    if (challengesResult.rows.length === 0) {
+      console.log('⚠️ No challenges found for starter seeding')
+      return
+    }
+
+    const starterTemplates: { [key: string]: string } = {
+      python: `# Start coding here
+def solution(args):
+    pass
+
+# Test your solution
+if __name__ == "__main__":
+    result = solution(None)
+    print(result)`,
+
+      javascript: `// Start coding here
+function solution(args) {
+  // Your code here
+}
+
+// Test your solution
+console.log(solution(null));`,
+
+      typescript: `// Start coding here
+function solution(args: any): any {
+  // Your code here
+}
+
+// Test your solution
+console.log(solution(null));`,
+
+      java: `public class Solution {
+  public static Object solution(Object args) {
+    // Your code here
+    return null;
+  }
+
+  public static void main(String[] args) {
+    System.out.println(solution(null));
+  }
+}`,
+
+      cpp: `#include <iostream>
+using namespace std;
+
+void solution(void* args) {
+  // Your code here
+}
+
+int main() {
+  solution(nullptr);
+  return 0;
+}`,
+
+      go: `package main
+
+import "fmt"
+
+func solution(args interface{}) interface{} {
+  // Your code here
+  return nil
+}
+
+func main() {
+  result := solution(nil)
+  fmt.Println(result)
+}`,
+
+      csharp: `using System;
+
+public class Solution {
+  public static object Solution(object args) {
+    // Your code here
+    return null;
+  }
+
+  public static void Main() {
+    object result = Solution(null);
+    Console.WriteLine(result);
+  }
+}`
+    }
+
+    // Insert starter codes for each challenge and language
+    for (const challenge of challengesResult.rows) {
+      for (const [language, content] of Object.entries(starterTemplates)) {
+        await query(
+          `INSERT INTO starter_codes (challenge_id, language, content) 
+           VALUES ($1, $2, $3)
+           ON CONFLICT (challenge_id, language) DO NOTHING`,
+          [challenge.id, language, content]
+        )
+      }
+    }
+
+    console.log(`✅ Starter codes seeded successfully`)
+  } catch (error) {
+    console.error('Error seeding starter codes:', error)
     // Don't throw - seeding is optional
   }
 }
