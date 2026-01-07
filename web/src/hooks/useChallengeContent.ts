@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { ContentRepository, ChallengeContentData } from '@/repositories/ContentRepository'
 import { hybridContentRepository } from '@/repositories/HybridContentRepository'
@@ -6,13 +6,19 @@ import { starterCodeManager } from '@/utils/StarterCodeManager'
 
 interface UseChallengeContentOptions {
   repository?: ContentRepository
-  debounceMs?: number
   enableRealtime?: boolean
 }
 
 /**
- * Hook for managing challenge content with TanStack Query
- * Now uses Repository pattern for better abstraction
+ * Simplified hook for managing challenge content with TanStack Query
+ * NOW USES POLLING ARCHITECTURE: Content is synced via API polling, not manual saves
+ * 
+ * - Load from DB ✅
+ * - Pass to CRDT (relay) ✅
+ * - Trust polling (every 5s) to persist changes ✅
+ * - NO manual save mutations
+ * - NO debounce/throttle on save
+ * - Language changes via dedicated endpoint
  * 
  * @param sessionId - Session identifier
  * @param challengeId - Challenge identifier
@@ -27,7 +33,6 @@ export function useChallengeContent(
 ) {
   const {
     repository = hybridContentRepository,
-    debounceMs = 500,
     enableRealtime = true,
   } = options
 
@@ -41,9 +46,8 @@ export function useChallengeContent(
   // Refs to prevent feedback loops
   const localContentRef = useRef<string>('')
   const localLanguageRef = useRef<string>('python')
-  const saveTimeoutRef = useRef<number | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
-  const isManualLanguageChangeRef = useRef<boolean>(false)  // Track if user manually changed language
+  const unsubscribeRef = useRef<(() => void) | null>(null)  // Keep track of current subscription
   
   // Fetch preferred language when challenge changes
   useEffect(() => {
@@ -51,9 +55,11 @@ export function useChallengeContent(
       return
     }
 
-    // Reset manual language change flag when challenge changes
-    // Next time we load language from server, accept it (don't override)
-    isManualLanguageChangeRef.current = false
+    // Reset subscription when challenge changes
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current()
+      unsubscribeRef.current = null
+    }
 
     // Cancel any pending language fetch from previous challenge
     if (abortControllerRef.current) {
@@ -92,12 +98,27 @@ export function useChallengeContent(
       }
     }
   }, [sessionId, normalizedChallengeId, repository])
+
+  // Invalidate cache when challenge changes (to force refetch)
+  useEffect(() => {
+    if (!sessionId || !normalizedChallengeId || normalizedChallengeId === 'unknown') {
+      return
+    }
+
+    console.log('[useChallengeContent] Challenge changed, invalidating old language queries')
+    
+    // Invalidate ALL queries for this challenge (all languages) since we're moving to a new challenge
+    queryClient.invalidateQueries({
+      queryKey: ['challenge-content', sessionId, normalizedChallengeId],
+      refetchType: 'inactive'  // Only refetch if query is actually being used
+    })
+  }, [sessionId, normalizedChallengeId, queryClient])
   
   // QueryKey includes language for proper cache separation
   const queryKey = ['challenge-content', sessionId, normalizedChallengeId, contentType, currentLanguage]
 
   // Query: Load from DB with language
-  const { data, isLoading, error } = useQuery<ChallengeContentData>({
+  const { data, isLoading, error, refetch } = useQuery<ChallengeContentData>({
     queryKey,
     queryFn: async () => {
       if (!sessionId || !normalizedChallengeId || normalizedChallengeId === 'unknown') {
@@ -121,79 +142,66 @@ export function useChallengeContent(
       
       return loadedData
     },
-    enabled: !!sessionId && !!normalizedChallengeId && normalizedChallengeId !== 'unknown' && isLanguageInitialized,
+    enabled: !!sessionId && !!normalizedChallengeId && normalizedChallengeId !== 'unknown',
     staleTime: Infinity,
   })
 
-  // Mutation: Save to DB
-  const saveMutation = useMutation({
-    mutationFn: async (newData: Partial<ChallengeContentData> & { isStarter?: boolean }) => {
-      if (!sessionId || !normalizedChallengeId) {
-        throw new Error('Invalid session or challenge ID')
-      }
+  // Phase 1b: Refetch when language changes (after initial language is loaded)
+  useEffect(() => {
+    if (isLanguageInitialized && data) {
+      // Language just became ready, refetch data for this new language
+      refetch()
+    }
+  }, [isLanguageInitialized, currentLanguage])
+
+  // Phase 2: Apply starter logic when DB data is ready
+  // This runs ONLY ONCE per challenge+language combination
+  useEffect(() => {
+    if (!data || isLoading) {
+      return // Wait for DB to load
+    }
+
+    console.log('[useChallengeContent] Phase 2: Checking if starter needed:', {
+      contentLength: data.content.length,
+      started: data.started,
+      language: currentLanguage,
+    })
+
+    // If content is empty, apply starter (DO NOT save to DB yet)
+    if (data.content === '' && !data.started) {
+      console.log('[useChallengeContent] Phase 2: Applying starter for language:', currentLanguage)
+      const starter = starterCodeManager.getStarter(currentLanguage)
       
-      const contentToSave = newData.content ?? data?.content ?? ''
-      const languageToSave = newData.language ?? data?.language ?? 'python'
-      const startedValue = newData.isStarter ? false : true  // Starter = false, normal content = true
-      
-      await repository.save(
-        sessionId,
-        parseInt(normalizedChallengeId),
-        contentToSave,
-        languageToSave,
-        contentType,
-        startedValue
-      )
-      
-      return { ...data, ...newData, started: startedValue } as ChallengeContentData
-    },
-    
-    // Optimistic update
-    onMutate: async (newData) => {
-      await queryClient.cancelQueries({ queryKey })
-      const previousData = queryClient.getQueryData<ChallengeContentData>(queryKey)
-      
-      // Calculate correct started value based on isStarter
-      const startedValue = newData.isStarter ? false : true
-      
-      // Optimistically update cache
+      // Update query cache with starter (DON'T save to DB)
+      // This ensures Editor sees content, but DB still has empty
       queryClient.setQueryData<ChallengeContentData>(queryKey, (old) => ({
         ...old!,
-        ...newData,
-        started: startedValue,
+        content: starter,
+        started: false, // Keep as false so on DB sync, polling can save it
       }))
       
-      return { previousData }
-    },
-    
-    // Rollback on error
-    onError: (err, _newData, context) => {
-      console.error('[useChallengeContent] Save failed, rolling back:', err)
-      if (context?.previousData) {
-        queryClient.setQueryData(queryKey, context.previousData)
-      }
-    },
-    
-    // Refetch on success
-    onSuccess: () => {},  
-  })
-
-  // Initialize refs when data loads (don't change currentLanguage - it's already set from preferred)
-  useEffect(() => {
-    if (data) {
-      localContentRef.current = data.content
-      localLanguageRef.current = data.language
+      localContentRef.current = starter
     }
-  }, [data])
-  
-  // Setup real-time sync (if enabled)
+  }, [data, isLoading, currentLanguage, queryClient, queryKey])
+
+  // Phase 3: Setup real-time sync ONLY after DB phase is complete
   useEffect(() => {
     if (!enableRealtime || !sessionId || !normalizedChallengeId || normalizedChallengeId === 'unknown' || !isLanguageInitialized) {
       console.log('[useChallengeContent] Real-time sync skipped:', { enableRealtime, sessionId: !!sessionId, normalizedChallengeId, isLanguageInitialized })
-      return  // Guard: wait for language to be initialized first
+      return  // Guard: wait for language and DB to be ready first
     }
 
-    console.log('[useChallengeContent] Setting up real-time sync for:', { sessionId, normalizedChallengeId, contentType, currentLanguage })
+    // IMPORTANT: Only setup after data is loaded
+    if (!data || isLoading) {
+      console.log('[useChallengeContent] Phase 3: Waiting for data', { hasData: !!data, isLoading })
+      return
+    }
+
+    console.log('[useChallengeContent] Phase 3: Setting up real-time sync for:', { sessionId, normalizedChallengeId, contentType, currentLanguage })
+
+    // Create stable reference to queryClient and queryKey for use in callback
+    const currentQueryKey: typeof queryKey = ['challenge-content', sessionId, normalizedChallengeId, contentType, currentLanguage]
+    const currentQueryClient = queryClient
 
     const unsubscribe = repository.subscribe(
       sessionId,
@@ -210,7 +218,6 @@ export function useChallengeContent(
         }
         
         // CRITICAL: Only apply if language matches current context
-        // Use the ref, not state, to avoid stale closures
         if (language !== localLanguageRef.current) {
           console.warn('[⚠️ CRDT] Language mismatch - ignored:', {
             received: language,
@@ -224,56 +231,26 @@ export function useChallengeContent(
         localLanguageRef.current = language
         
         // Update query cache with CRDT data
-        queryClient.setQueryData<ChallengeContentData>(queryKey, (old) => ({
+        console.log('[useChallengeContent] Real-time update from CRDT:', { contentLength: content.length })
+        currentQueryClient.setQueryData<ChallengeContentData>(currentQueryKey, (old) => ({
           ...old!,
           content,
           language,
         }))
       }
     )
+    
+    // Store for cleanup
+    unsubscribeRef.current = unsubscribe
 
     return () => {
       console.log('[useChallengeContent] Cleaning up real-time sync')
       unsubscribe()
-      if (saveTimeoutRef.current) {
-        window.clearTimeout(saveTimeoutRef.current)
-      }
+      unsubscribeRef.current = null
     }
-    // DO NOT include currentLanguage in deps!
-    // The CRDT subscription is keyed by language on the server side,
-    // so when you change currentLanguage, you need to also refetch the query (which is separate).
-    // The subscription should only re-run when session/challenge/content type changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId, normalizedChallengeId, contentType, enableRealtime])
+  }, [sessionId, normalizedChallengeId, contentType, enableRealtime, currentLanguage, isLanguageInitialized])
 
-  // Save content when leaving challenge/language combination
-  useEffect(() => {
-    return () => {
-      // Cleanup: Save the current content when unmounting or before switching challenge
-      if (sessionId && normalizedChallengeId && normalizedChallengeId !== 'unknown' && localContentRef.current) {
-        console.log('[useChallengeContent] 💾 Saving content on cleanup for challenge:', {
-          sessionId,
-          normalizedChallengeId,
-          language: localLanguageRef.current,
-          contentLength: localContentRef.current.length
-        })
-        
-        // Use repository to save directly, bypassing mutation (fire-and-forget)
-        repository.save(
-          sessionId,
-          parseInt(normalizedChallengeId),
-          localContentRef.current,
-          localLanguageRef.current,
-          contentType,
-          true  // Save as started:true
-        ).catch(err => {
-          console.warn('[useChallengeContent] ⚠️ Failed to save on cleanup:', err)
-        })
-      }
-    }
-  }, [sessionId, normalizedChallengeId, contentType, repository])
-
-  // Helper functions
+  // Helper function to update content (IMPORTANT: No manual save here)
   const updateContent = useCallback((content: string, isStarter: boolean = false) => {
     // Update local ref immediately
     localContentRef.current = content
@@ -284,8 +261,9 @@ export function useChallengeContent(
       content,
     }))
     
-    // Publish to real-time sync immediately
+    // Publish to real-time sync ONLY (let polling handle DB persistence)
     if (enableRealtime && sessionId && normalizedChallengeId && currentLanguage) {
+      console.log('[useChallengeContent] Publishing to CRDT (polling will persist):', { contentLength: content.length })
       repository.publish(
         sessionId,
         normalizedChallengeId,
@@ -294,16 +272,7 @@ export function useChallengeContent(
         currentLanguage
       )
     }
-    
-    // Debounce DB save
-    if (saveTimeoutRef.current) {
-      window.clearTimeout(saveTimeoutRef.current)
-    }
-    
-    saveTimeoutRef.current = window.setTimeout(() => {
-      saveMutation.mutate({ content, isStarter })
-    }, debounceMs)
-  }, [sessionId, normalizedChallengeId, contentType, currentLanguage, queryClient, queryKey, saveMutation, enableRealtime, repository, debounceMs])
+  }, [sessionId, normalizedChallengeId, contentType, currentLanguage, queryClient, queryKey, enableRealtime, repository])
 
   const updateLanguage = useCallback((language: string) => {
     if (language === currentLanguage) {
@@ -311,31 +280,33 @@ export function useChallengeContent(
       return  // No change needed
     }
     
-    console.log('[useChallengeContent] User changed language from', currentLanguage, 'to:', language)
+    console.log('[useChallengeContent] User changed language to:', language)
     
-    // Mark this as a manual change (don't override with preferred language on next desafio change)
-    isManualLanguageChangeRef.current = true
-    
-    // IMPORTANT: Save current content with old language BEFORE switching
-    // This registers the old language as being used (for preferred language tracking)
-    if (sessionId && normalizedChallengeId && normalizedChallengeId !== 'unknown' && localContentRef.current) {
-      const oldLanguage = currentLanguage
-      console.log('[useChallengeContent] Saving content for old language:', oldLanguage, 'with length:', localContentRef.current.length)
-      saveMutation.mutate({ 
-        content: localContentRef.current, 
-        language: oldLanguage,
-        isStarter: false 
+    // Call backend to handle language switch
+    // This will: move current to history, load new from history or create starter
+    if (sessionId && normalizedChallengeId && normalizedChallengeId !== 'unknown') {
+      repository.changeLanguage?.(
+        sessionId,
+        parseInt(normalizedChallengeId),
+        language,
+        contentType
+      ).then(() => {
+        // Update state to new language - this will trigger the query to fetch for new language
+        setCurrentLanguage(language)
+        localLanguageRef.current = language
+        
+        // Invalidate old query cache for previous language
+        const oldQueryKey = ['challenge-content', sessionId, normalizedChallengeId, contentType, currentLanguage]
+        queryClient.removeQueries({ queryKey: oldQueryKey })
+      }).catch(err => {
+        console.error('[useChallengeContent] Failed to change language:', err)
       })
+    } else {
+      // Fallback: just change locally if no backend call
+      setCurrentLanguage(language)
+      localLanguageRef.current = language
     }
-    
-    // Invalidate old query cache for previous language
-    const oldQueryKey = ['challenge-content', sessionId, normalizedChallengeId, contentType, currentLanguage]
-    queryClient.removeQueries({ queryKey: oldQueryKey })
-    
-    // Update state to new language - this will trigger the query to fetch for new language
-    setCurrentLanguage(language)
-    localLanguageRef.current = language
-  }, [sessionId, normalizedChallengeId, repository, currentLanguage, contentType, queryClient, saveMutation])
+  }, [sessionId, normalizedChallengeId, repository, currentLanguage, contentType, queryClient])
 
   const applyStarter = useCallback((language?: string) => {
     const lang = language || data?.language || 'python'
@@ -353,6 +324,7 @@ export function useChallengeContent(
     updateContent,
     updateLanguage,
     applyStarter,
-    isSaving: saveMutation.isPending,
+    isSaving: false,  // No manual saves anymore, polling handles it
   }
 }
+

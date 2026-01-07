@@ -113,6 +113,24 @@ export class HybridContentRepository implements ContentRepository {
       language
     )
   }
+
+  /**
+   * Change language for a challenge
+   * Calls backend endpoint to move current to history and load new language
+   */
+  async changeLanguage(
+    sessionId: string,
+    challengeId: number,
+    language: string,
+    contentType: string = 'code'
+  ): Promise<{ success: boolean; content: string; fromHistory: boolean }> {
+    return await sessionContentService.changeLanguage(
+      sessionId,
+      challengeId,
+      language,
+      contentType
+    )
+  }
 }
 
 // Export singleton instance

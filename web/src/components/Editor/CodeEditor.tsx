@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useMemo } from 'react'
 import { Editor } from '@monaco-editor/react'
 import { useChallengeContent } from '@/hooks/useChallengeContent'
-import { starterCodeManager } from '@/utils/StarterCodeManager'
 import { EditorSyncController } from '@/utils/EditorSyncController'
 import '@/styles/Editor.css'
 
@@ -36,7 +35,6 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   const prevLanguageRef = useRef<string>('')
   const lastContentRef = useRef<string>('')
   const isInitializedRef = useRef(false)
-  const starterAppliedForRef = useRef<string>('')  // Track challenge+language where starter was applied
   
   // Create EditorSyncController instance (one per component)
   const syncController = useMemo(() => new EditorSyncController(), [])
@@ -55,26 +53,10 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   // Reset flags when challenge changes
   useEffect(() => {
     isInitializedRef.current = false
-    starterAppliedForRef.current = ''  // Reset starter tracking
   }, [challengeId, sessionId])
 
-  // Auto-apply starter using StarterCodeManager (prevents multiple applications)
-  useEffect(() => {
-    if (isLoading || !language) return
-    
-    // Create unique key for this challenge+language combination
-    const key = `${challengeId}-${language}`
-    if (starterAppliedForRef.current === key) {
-      return  // Already applied for this combination
-    }
-    
-    // Use StarterCodeManager to decide if should apply
-    if (starterCodeManager.shouldApply(started, content)) {
-      starterAppliedForRef.current = key  // Mark as applied
-      const starter = starterCodeManager.getStarter(language)
-      updateContent(starter, true)  // Pass isStarter=true to save with started: false
-    }
-  }, [isLoading, content, language, started, challengeId, updateContent])
+  // REMOVED: Starter logic moved to useChallengeContent hook (Phase 2)
+  // Editor is now passive - it just renders what the hook provides
   
   // Update editor model directly when content changes from external source
   useEffect(() => {

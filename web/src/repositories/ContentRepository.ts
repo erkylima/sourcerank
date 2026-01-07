@@ -77,4 +77,15 @@ export interface ContentRepository {
     content: string,
     language: string
   ): void
+
+  /**
+   * Change language for a challenge
+   * Moves current to history, loads new from history or creates starter
+   */
+  changeLanguage?(
+    sessionId: string,
+    challengeId: number,
+    language: string,
+    contentType: string
+  ): Promise<{ success: boolean; content: string; fromHistory: boolean }>
 }

@@ -5,6 +5,7 @@ import challengeRoutes from './modules/challenges/challenge.routes'
 import sessionRoutes from './modules/sessions/session.routes'
 import executionRoutes from './modules/execution/execution.routes'
 import crdtRoutes from './modules/crdt/crdt.routes'
+import relayRoutes from './modules/crdt/relay.routes'
 import sessionContentRoutes from './modules/session-content/session-content.routes'
 import { AppError } from './utils/errors'
 
@@ -22,6 +23,7 @@ export function createApp(): Express {
   app.use('/sessions', sessionRoutes)
   app.use('/executions', executionRoutes)
   app.use('/crdt', crdtRoutes)
+  app.use('/relay', relayRoutes)
   app.use('/session-content', sessionContentRoutes)
 
   // Health check

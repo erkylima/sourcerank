@@ -96,6 +96,42 @@ export class SessionContentService {
       return false
     }
   }
+
+  /**
+   * Change language for a challenge
+   * Backend will move current to history and load new language
+   */
+  async changeLanguage(
+    sessionId: string,
+    challengeId: number,
+    language: string,
+    contentType: string = 'code'
+  ): Promise<{ success: boolean; content: string; fromHistory: boolean }> {
+    try {
+      const token = authService.getToken()
+      console.log('[sessionContentService] Changing language:', { sessionId, challengeId, language, contentType })
+
+      const response = await axios.post(
+        `${API_BASE}/session-content/${sessionId}/challenges/${challengeId}/change-language`,
+        { language, contentType },
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        }
+      )
+
+      console.log('[sessionContentService] ✅ Language changed:', response.data)
+      return {
+        success: response.data.success,
+        content: response.data.content || '',
+        fromHistory: response.data.fromHistory || false,
+      }
+    } catch (err: any) {
+      console.error('[sessionContentService] ❌ Failed to change language:', err.response?.status, err.message)
+      throw err
+    }
+  }
 }
 
 export default new SessionContentService()

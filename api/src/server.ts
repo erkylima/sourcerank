@@ -5,6 +5,7 @@ import { createApp } from './app'
 import { ExecutionGateway } from './websocket/execution.gateway'
 import { YjsProxyGateway } from './websocket/yjs-proxy.gateway'
 import sessionService from './modules/sessions/session.service'
+import pollingService from './modules/crdt/polling.service'
 
 async function startServer() {
   try {
@@ -29,6 +30,10 @@ async function startServer() {
 
     // Store gateway in app for use in routes
     app.locals.executionGateway = executionGateway
+
+    // Start polling service (syncs relay snapshots to database every 5 seconds)
+    pollingService.startPolling()
+    console.log('Polling service started')
 
     // Setup cleanup interval for expired sessions (every 5 minutes)
     setInterval(async () => {

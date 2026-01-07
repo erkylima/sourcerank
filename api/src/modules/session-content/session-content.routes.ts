@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { authenticateToken } from '../../middlewares/auth.middleware'
 import sessionContentService from './session-content.service'
+import languageService from './language.service'
 
 const router = Router()
 
@@ -92,6 +93,69 @@ router.post('/:sessionId/challenges/:challengeId', authenticateToken, async (req
       return
     }
     
+    res.status(500).json({ error: err.message })
+  }
+})
+
+/**
+ * POST /session-content/:sessionId/challenges/:challengeId/change-language
+ * Change language for a challenge
+ * Moves current to history, loads new from history or creates starter
+ */
+router.post('/:sessionId/challenges/:challengeId/change-language', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const { sessionId, challengeId } = req.params
+    const { language, contentType = 'code' } = req.body
+
+    if (!sessionId || !challengeId) {
+      res.status(400).json({ error: 'Missing sessionId or challengeId' })
+      return
+    }
+
+    if (!language) {
+      res.status(400).json({ error: 'Missing language' })
+      return
+    }
+
+    console.log('[SessionContentController] POST change language for:', { sessionId, challengeId, language, contentType })
+    const result = await languageService.changeLanguage(
+      sessionId,
+      parseInt(challengeId),
+      language,
+      contentType
+    )
+
+    res.json(result)
+  } catch (err: any) {
+    console.error('[SessionContentController] Error changing language:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+/**
+ * GET /session-content/:sessionId/challenges/:challengeId/languages
+ * Get all languages that have been used for a challenge
+ */
+router.get('/:sessionId/challenges/:challengeId/languages', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const { sessionId, challengeId } = req.params
+    const { contentType = 'code' } = req.query
+
+    if (!sessionId || !challengeId) {
+      res.status(400).json({ error: 'Missing sessionId or challengeId' })
+      return
+    }
+
+    console.log('[SessionContentController] GET languages for:', { sessionId, challengeId, contentType })
+    const languages = await languageService.getLanguageHistory(
+      sessionId,
+      parseInt(challengeId),
+      String(contentType)
+    )
+
+    res.json({ languages })
+  } catch (err: any) {
+    console.error('[SessionContentController] Error getting languages:', err)
     res.status(500).json({ error: err.message })
   }
 })

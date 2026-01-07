@@ -29,9 +29,9 @@ if (!ENABLE_S3_SNAPSHOT && !fs.existsSync(LOCAL_SNAPSHOT_DIR)) {
 }
 
 // Per-session/challenge in-memory state
-// Key format: `${sessionId}:${challengeId}:${contentType}`
+// Key format: `${sessionId}:${challengeId}:${contentType}:${language}`
 // Each combination gets its own Y.Doc with a Y.Map containing content keys
-const sessions = new Map() // key -> { doc: Y.Doc, clients: Set<ws>, updatesSinceSnapshot: number }
+const sessions = new Map() // key -> { doc: Y.Doc, clients: Set<ws>, updatesSinceSnapshot: number, lastSnapshot: Uint8Array, lastSnapshotTime: number }
 
 function getSessionKey(sessionId, challengeId, contentType = 'default', language = 'default') {
   return `${sessionId}:${challengeId}:${contentType}:${language}`
@@ -115,9 +115,71 @@ async function getSessionWithSnapshot(sessionId, challengeId, contentType = 'def
       console.log(`[yjs-relay] 🚀 No snapshot found - starting fresh for: ${key}`)
     }
     
-    sessions.set(key, { doc, clients: new Set(), updatesSinceSnapshot: 0, key })
+    // Initialize lastSnapshot for polling API
+    const initialSnapshot = Y.encodeStateAsUpdate(doc)
+    
+    sessions.set(key, { 
+      doc, 
+      clients: new Set(), 
+      updatesSinceSnapshot: 0, 
+      key,
+      lastSnapshot: new Uint8Array(initialSnapshot),
+      lastSnapshotTime: Date.now()
+    })
   }
   return sessions.get(key)
+}
+
+/**
+ * Get snapshot only if it has changed since last poll
+ * Used by API polling to decide whether to persist to database
+ */
+function getSnapshotIfChanged(sessionId, challengeId, contentType = 'default', language = 'default') {
+  const key = getSessionKey(sessionId, challengeId, contentType, language)
+  const session = sessions.get(key)
+  
+  if (!session) {
+    console.log(`[yjs-relay] [getSnapshotIfChanged] Session not found: ${key}`)
+    return null
+  }
+
+  // Get current state
+  const currentSnapshot = Y.encodeStateAsUpdate(session.doc)
+  
+  // Compare with last saved snapshot
+  const hasChanged = !areUint8ArraysEqual(session.lastSnapshot, currentSnapshot)
+  
+  if (hasChanged) {
+    console.log(`[yjs-relay] [getSnapshotIfChanged] ✅ Change detected for ${key} (${currentSnapshot.length} bytes)`)
+    
+    // Update last snapshot
+    session.lastSnapshot = new Uint8Array(currentSnapshot)
+    session.lastSnapshotTime = Date.now()
+    
+    return {
+      sessionId,
+      challengeId,
+      contentType,
+      language,
+      snapshot: Buffer.from(currentSnapshot),
+      snapshotSize: currentSnapshot.length,
+      timestamp: session.lastSnapshotTime
+    }
+  } else {
+    console.log(`[yjs-relay] [getSnapshotIfChanged] No changes for ${key}`)
+    return null
+  }
+}
+
+/**
+ * Helper to compare two Uint8Arrays
+ */
+function areUint8ArraysEqual(a, b) {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false
+  }
+  return true
 }
 
 async function persistSnapshot(sessionKey, doc) {
@@ -183,6 +245,45 @@ function startServer() {
       res.json({ success: true, key })
     } catch (err) {
       console.error('[yjs-relay] Error force saving snapshot:', err)
+      res.status(500).json({ error: err.message })
+    }
+  })
+
+  // HTTP endpoint for API polling: get snapshot only if changed
+  app.get('/relay/state', (req, res) => {
+    try {
+      const { sessionId, challengeId, contentType, language } = req.query
+      
+      if (!sessionId || !challengeId) {
+        return res.status(400).json({ error: 'Missing sessionId or challengeId' })
+      }
+
+      console.log(`[yjs-relay] [API] Polling for state:`, { sessionId, challengeId, contentType, language })
+      
+      const snapshot = getSnapshotIfChanged(
+        sessionId,
+        parseInt(challengeId),
+        contentType || 'code',
+        language || 'python'
+      )
+
+      if (snapshot) {
+        console.log(`[yjs-relay] [API] Returning snapshot (${snapshot.snapshotSize} bytes)`)
+        res.json({
+          hasChanged: true,
+          sessionId: snapshot.sessionId,
+          challengeId: snapshot.challengeId,
+          contentType: snapshot.contentType,
+          language: snapshot.language,
+          snapshot: snapshot.snapshot.toString('base64'),
+          timestamp: snapshot.timestamp
+        })
+      } else {
+        console.log(`[yjs-relay] [API] No changes - returning null`)
+        res.json({ hasChanged: false })
+      }
+    } catch (err) {
+      console.error('[yjs-relay] Error in /relay/state:', err)
       res.status(500).json({ error: err.message })
     }
   })
