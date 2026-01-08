@@ -42,6 +42,9 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
   const [logs, setLogs] = useState('')
   const [isExecuting, setIsExecuting] = useState(false)
 
+  // Get current challenge from state
+  const currentChallenge = challenges[currentChallengeIndex] || null
+
   // Load challenges AND recover/initialize current challenge
   useEffect(() => {
     const load = async () => {
@@ -109,35 +112,23 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
     recoverLanguage()
   }, [sessionId])
 
-  // Persist current content to DB on mount (recovery/reload scenario)
+  // When challenge changes, also recover the preferred language for that challenge
   useEffect(() => {
-    if (!sessionId || !currentCodeRef.current) return
+    if (!sessionId || !currentChallenge) return
 
-    const persistOnMount = async () => {
+    const recoverLanguageForChallenge = async () => {
       try {
-        const currentIndex = useUIStore.getState().currentChallengeIndex
-        const currentChallenge = challenges[currentIndex]
-
-        // Only persist if user wrote something real (not just starter)
-        if (currentChallenge && currentCodeRef.current && currentCodeRef.current.trim() !== '' && currentStartedRef.current) {
-          console.log('[InterviewPage] 💾 Persisting content on mount (recovery scenario)')
-          await apiService.persistContent(
-            sessionId,
-            String(currentChallenge.id),
-            currentCodeRef.current,
-            language
-            // Don't pass previous fields for recovery scenario
-          )
-        }
+        console.log('[InterviewPage] Recovering language for challenge:', currentChallenge.id)
+        const lang = await apiService.getPreferredLanguage(sessionId)
+        console.log('[InterviewPage] ✅ Challenge language:', lang)
+        setLanguage(lang)
       } catch (err) {
-        console.warn('[InterviewPage] Failed to persist on mount:', err)
+        console.error('[InterviewPage] Error recovering challenge language:', err)
       }
     }
 
-    // Delay slightly to ensure CodeEditor is fully mounted and content is loaded
-    const timer = setTimeout(persistOnMount, 500)
-    return () => clearTimeout(timer)
-  }, [sessionId, language, challenges.length])
+    recoverLanguageForChallenge()
+  }, [sessionId, currentChallenge])
 
   // Join session room
   useEffect(() => {
@@ -222,8 +213,6 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
     }
   }, [sessionId])
 
-  const currentChallenge = challenges[currentChallengeIndex] || null
-
   // Handle language change with starter logic
   const handleLanguageChange = useCallback((newLanguage: string) => {
     console.log('[InterviewPage] 🔄 Language change:', { from: language, to: newLanguage })
@@ -289,13 +278,7 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
   const handleNavigate = (newIndex: number) => {
     if (newIndex < 0 || newIndex >= challenges.length) return
 
-    // Force save current challenge content before navigating
-    if (updateContentRef.current && currentCodeRef.current && sessionId && currentChallenge) {
-      console.log('[InterviewPage] 💾 Force saving before navigate:', currentChallenge.id)
-      updateContentRef.current(currentCodeRef.current)
-    }
-
-    // Persist current challenge content before navigating (challenge switch scenario)
+    // Persist current challenge content BEFORE navigating (using current language)
     // Only persist if user actually wrote something (not just starter)
     if (sessionId && currentChallenge && currentCodeRef.current && currentCodeRef.current.trim() !== '' && currentStartedRef.current) {
       console.log('[InterviewPage] 📸 Persisting challenge before navigate:', currentChallenge.id)
@@ -303,39 +286,27 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
         sessionId,
         String(currentChallenge.id),
         currentCodeRef.current, // Save current content
-        language
-        // Don't pass previousLanguage/previousContent for challenge switch
+        language                // With current language
       ).catch(err => {
         console.error('[InterviewPage] Failed to persist before navigate:', err)
       })
-    } else {
-      console.log('[InterviewPage] ⏭️ Skipping persist before navigate (no real content):', { 
-        hasContent: !!currentCodeRef.current, 
-        isNotEmpty: currentCodeRef.current?.trim() !== '', 
-        started: currentStartedRef.current 
-      })
+    }
+
+    // Force save current challenge content before navigating
+    if (updateContentRef.current && currentCodeRef.current && sessionId && currentChallenge) {
+      console.log('[InterviewPage] 💾 Force saving before navigate:', currentChallenge.id)
+      updateContentRef.current(currentCodeRef.current)
     }
 
     // Update current challenge in database for persistence on page reload
     const newChallenge = challenges[newIndex]
     if (newChallenge && sessionId) {
-      // Recover preferred language for this session
+      // Recover preferred language for new challenge
       apiService.getPreferredLanguage(sessionId).then(lang => {
         console.log('[InterviewPage] 🔄 Recovered language for new challenge:', lang)
         setLanguage(lang)
       }).catch(err => {
         console.error('[InterviewPage] Failed to recover language:', err)
-      })
-
-      // Load content for new challenge with preferred language
-      apiService.getPreferredLanguage(sessionId).then(lang => {
-        console.log('[InterviewPage] 📥 Loading content for new challenge:', { challengeId: newChallenge.id, language: lang })
-        return apiService.getChallengeContent(sessionId, newChallenge.id, lang)
-      }).then(response => {
-        console.log('[InterviewPage] ✅ Loaded content for new challenge:', { length: response.data.content.length })
-        // CodeEditor hook will automatically fetch when challengeId changes in queryKey
-      }).catch(err => {
-        console.error('[InterviewPage] Failed to load content for new challenge:', err)
       })
 
       console.log('[InterviewPage] 📌 Updating current challenge in DB:', newChallenge.id)
