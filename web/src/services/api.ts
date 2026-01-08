@@ -59,8 +59,10 @@ export const apiService = {
     axiosInstance.post(`/crdt/snapshot`, { sessionId, challengeId }),
 
   // Preferred language - Session-wide language preference
-  getPreferredLanguage: (sessionId: string) =>
-    axiosInstance.get(`/session-content/sessions/${sessionId}/preferred-language`),
+  getPreferredLanguage: async (sessionId: string) => {
+    const response = await axiosInstance.get<{ language: string }>(`/session-content/sessions/${sessionId}/preferred-language`)
+    return response.data.language
+  },
   updatePreferredLanguage: (sessionId: string, language: string) =>
     axiosInstance.patch(`/session-content/sessions/${sessionId}/preferred-language`, { language }),
 
