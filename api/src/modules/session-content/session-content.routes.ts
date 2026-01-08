@@ -176,7 +176,7 @@ router.get('/sessions/:sessionId/preferred-language', authenticateToken, async (
     console.log('[SessionContentController] GET preferred language for session:', { sessionId })
     const language = await sessionContentService.getSessionPreferredLanguage(sessionId)
 
-    res.send(language) // Send as plain text
+    res.json({ language }) // Send as JSON
   } catch (err: any) {
     console.error('[SessionContentController] Error getting session preferred language:', err)
     res.status(500).json({ error: err.message })

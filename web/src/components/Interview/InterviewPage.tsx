@@ -115,18 +115,18 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
 
     const persistOnMount = async () => {
       try {
-        console.log('[InterviewPage] 💾 Persisting content on mount (recovery scenario)')
         const currentIndex = useUIStore.getState().currentChallengeIndex
         const currentChallenge = challenges[currentIndex]
 
-        if (currentChallenge && currentCodeRef.current) {
+        // Only persist if user wrote something real (not just starter)
+        if (currentChallenge && currentCodeRef.current && currentCodeRef.current.trim() !== '' && currentStartedRef.current) {
+          console.log('[InterviewPage] 💾 Persisting content on mount (recovery scenario)')
           await apiService.persistContent(
             sessionId,
             String(currentChallenge.id),
             currentCodeRef.current,
-            language,
-            null, // No previous language
-            null
+            language
+            // Don't pass previous fields for recovery scenario
           )
         }
       } catch (err) {
@@ -260,17 +260,22 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
     }
 
     // Persist content with history (language switch scenario)
-    if (sessionId && currentChallenge && previousContent) {
+    // Only persist if user actually wrote something (not just starter)
+    if (sessionId && currentChallenge && previousContent && previousContent.trim() !== '' && currentStartedRef.current) {
       console.log('[InterviewPage] 💾 Persisting language switch:', { from: previousLanguage, to: newLanguage })
       apiService.persistContent(
         sessionId,
         String(currentChallenge.id),
-        previousContent, // Save old content
-        newLanguage,
-        previousLanguage, // Mark what we're switching from
-        previousContent
+        previousContent,  // Save old language content
+        previousLanguage, // In old language
       ).catch(err => {
         console.error('[InterviewPage] Failed to persist language change:', err)
+      })
+    } else {
+      console.log('[InterviewPage] ⏭️ Skipping persist (no real content):', { 
+        hasContent: !!previousContent, 
+        isNotEmpty: previousContent?.trim() !== '', 
+        started: currentStartedRef.current 
       })
     }
     
@@ -291,17 +296,23 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
     }
 
     // Persist current challenge content before navigating (challenge switch scenario)
-    if (sessionId && currentChallenge && currentCodeRef.current) {
+    // Only persist if user actually wrote something (not just starter)
+    if (sessionId && currentChallenge && currentCodeRef.current && currentCodeRef.current.trim() !== '' && currentStartedRef.current) {
       console.log('[InterviewPage] 📸 Persisting challenge before navigate:', currentChallenge.id)
       apiService.persistContent(
         sessionId,
         String(currentChallenge.id),
         currentCodeRef.current, // Save current content
-        language,
-        null, // No previous language (same challenge)
-        null
+        language
+        // Don't pass previousLanguage/previousContent for challenge switch
       ).catch(err => {
         console.error('[InterviewPage] Failed to persist before navigate:', err)
+      })
+    } else {
+      console.log('[InterviewPage] ⏭️ Skipping persist before navigate (no real content):', { 
+        hasContent: !!currentCodeRef.current, 
+        isNotEmpty: currentCodeRef.current?.trim() !== '', 
+        started: currentStartedRef.current 
       })
     }
 
