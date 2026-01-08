@@ -283,12 +283,15 @@ docker compose up
 4. Push (`git push origin feature/MinhaFeature`)
 5. Abra Pull Request
 
-## 📚 Documentação Adicional
+## 📚 Documentação Completa
 
-- [QUICKSTART.md](./QUICKSTART.md) - Guia rápido
-- [ARCHITECTURE.md](./ARCHITECTURE.md) - Arquitetura detalhada
-- [PROJECT_STATUS.md](./PROJECT_STATUS.md) - Status completo
-- [API_EXAMPLES.md](./API_EXAMPLES.md) - Exemplos de API
+- [DESCRIPTION.md](./DESCRIPTION.md) - Descrição detalhada do projeto
+- [QUICKSTART.md](./QUICKSTART.md) - Guia rápido de setup (5 minutos)
+- [ARCHITECTURE.md](./ARCHITECTURE.md) - Arquitetura técnica e diagramas
+- [PROJECT_STATUS.md](./PROJECT_STATUS.md) - Status completo e roadmap
+- [API_EXAMPLES.md](./API_EXAMPLES.md) - Exemplos de endpoints REST
+- [DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md) - Guia para desenvolvedores
+- [Modelagem_dados.md](./Modelagem_dados.md) - Schema do banco de dados
 
 ## 📄 Licença
 

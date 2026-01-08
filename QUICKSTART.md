@@ -1,53 +1,153 @@
-# 🚀 Quick Start Guide - SourceRank
+# QUICKSTART - SourceRank
 
-## 5 Minutos para Começar
+Guia rápido para colocar a plataforma rodando em minutos.
 
-### 1. Backend API
+## 🚀 Inicialização Rápida
 
+### 1. Pré-requisitos
 ```bash
-# Entrar no diretório
-cd backend
-
-# Instalar dependências
-npm install
-
-# Configurar variáveis de ambiente
-cp .env.example .env
-# Editar .env com suas configurações de banco
-
-# Iniciar servidor
-npm run dev
+# Verifique se tem instalado:
+docker --version        # Docker 24+
+docker-compose --version # Docker Compose 2.20+
 ```
 
-✅ Backend rodando em `http://localhost:4000`
-
-### 2. Runner Service
-
+### 2. Clonar e Navegar
 ```bash
-# Entrar no diretório (em outro terminal)
-cd runner
-
-# Instalar dependências
-npm install
-
-# Iniciar servidor
-npm run dev
+cd /home/erky/Documentos/desenvolvimento/projetos/sourcerank
 ```
 
-✅ Runner rodando em `http://localhost:3001`
-
-### 3. Testar
-
+### 3. Iniciar Serviços
 ```bash
-# Terminal 3
-cd runner
+# Build e start completo
+docker compose up --build
 
-# Executar testes
-chmod +x test.sh
-./test.sh
+# Ou apenas restart rápido
+docker compose restart
 ```
 
-✅ Todos os endpoints testados
+Aguarde 30-60 segundos para tudo estar pronto. Você verá:
+```
+✅ Database initialized successfully
+✅ Challenges seeded successfully
+✅ Starter codes seeded successfully
+✅ WebSocket gateway initialized
+✅ API listening on http://0.0.0.0:4000
+```
+
+### 4. Acessar Aplicação
+
+| Serviço | URL |
+|---------|-----|
+| **Frontend** | http://localhost:5173 |
+| **API REST** | http://localhost:4000 |
+| **WebSocket** | ws://localhost:4000 |
+| **Database** | postgres://localhost:5432 |
+
+### 5. Login Inicial
+```
+Email: teste@example.com
+Senha: teste123
+```
+
+---
+
+## 👤 Fluxo de Uso
+
+### Entrevistador
+1. Login em http://localhost:5173
+2. Clica "Nova Sessão"
+3. Seleciona desafio inicial
+4. Compartilha link com candidato
+5. Monitora em tempo real
+
+### Candidato
+1. Recebe link da sessão
+2. Clica para aceitar
+3. Vê desafio e escreve código
+4. Clica "Executar" para testar
+
+---
+
+## 🔧 Comandos Úteis
+
+```bash
+# Ver status dos containers
+docker ps
+
+# Ver logs de um serviço
+docker logs sr_api --follow
+docker logs sr_web --follow
+docker logs sr_runner --follow
+
+# Reiniciar um serviço específico
+docker compose restart web
+docker compose restart api
+docker compose restart runner
+
+# Parar tudo
+docker compose down
+
+# Limpar volumes (reinicia banco)
+docker compose down -v
+
+# Build sem cache
+docker compose build --no-cache
+```
+
+---
+
+## 🧪 Testar Funcionalidades Principais
+
+### Test 1: Código Sincronizado
+1. Abra 2 abas: uma para Entrevistador, outra para Candidato
+2. Candidato digita código
+3. Entrevistador deve ver em tempo real (< 100ms)
+
+### Test 2: Troca de Linguagem
+1. Candidato está em Python
+2. Candidato muda para JavaScript
+3. Starter code muda instantaneamente (sem piscar)
+4. Entrevistador vê a mudança
+
+### Test 3: Execução de Código
+1. Candidato clica "Executar"
+2. Ambos veem logs em tempo real
+3. Sem duplicação de mensagens
+
+### Test 4: Navegação de Desafios
+1. Entrevistador clica "Próximo desafio"
+2. Candidato vê novo desafio automaticamente
+3. Código anterior é preservado no histórico
+
+---
+
+## ❌ Troubleshooting Rápido
+
+### Frontend não carrega
+```bash
+docker logs sr_web
+docker compose restart web
+```
+
+### API retorna erro
+```bash
+docker logs sr_api
+docker compose restart api
+```
+
+### Banco de dados não inicializa
+```bash
+# Resetar banco
+docker compose down -v
+docker compose up --build
+```
+
+### Código não executa
+```bash
+docker logs sr_runner
+# Se não houver logs, pode ser falta de SDKs
+docker compose build --no-cache runner
+```
 
 ---
 

@@ -35,6 +35,8 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
   const updateContentRef = useRef<((content: string) => void) | null>(null)
   const currentCodeRef = useRef<string>('')
   const currentStartedRef = useRef<boolean>(false)
+  // Track listeners for each execution to prevent duplicates
+  const executionListenersRef = useRef<Map<string, { handleLog: any; handleCompleted: any }>>(new Map())
   
   // Local state
   const [challenges, setChallenges] = useState<Challenge[]>([])
@@ -93,7 +95,7 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
     load()
   }, [sessionId])
 
-  // Recover preferred language on mount/sessionId change
+  // Recover preferred language on mount/sessionId or challenge change (unified)
   useEffect(() => {
     if (!sessionId) return
 
@@ -110,25 +112,7 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
     }
 
     recoverLanguage()
-  }, [sessionId])
-
-  // When challenge changes, also recover the preferred language for that challenge
-  useEffect(() => {
-    if (!sessionId || !currentChallenge) return
-
-    const recoverLanguageForChallenge = async () => {
-      try {
-        console.log('[InterviewPage] Recovering language for challenge:', currentChallenge.id)
-        const lang = await apiService.getPreferredLanguage(sessionId)
-        console.log('[InterviewPage] ✅ Challenge language:', lang)
-        setLanguage(lang)
-      } catch (err) {
-        console.error('[InterviewPage] Error recovering challenge language:', err)
-      }
-    }
-
-    recoverLanguageForChallenge()
-  }, [sessionId, currentChallenge])
+  }, [sessionId, currentChallenge?.id])
 
   // Join session room
   useEffect(() => {
@@ -179,7 +163,7 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
     }
   }, [sessionId, challenges.length, setCurrentChallengeIndex])
 
-  // Setup execution logging
+  // Setup execution logging - synchronized across all clients
   useEffect(() => {
     if (!sessionId) return
 
@@ -188,20 +172,46 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
 
     const handleExecutionStarted = (payload: any) => {
       const { executionId } = payload
+
+      console.log('[InterviewPage] 🚀 Execution started:', executionId)
+
+      // Limpa o log para todos os usuários ao iniciar execução
+      setLogs('')
+
+      // Check if we already have listeners for this execution
+      if (executionListenersRef.current.has(executionId)) {
+        console.log('[InterviewPage] Listeners already registered for execution:', executionId)
+        return
+      }
+
       socket.emit('join-execution', executionId)
 
+      // Create handlers for this specific execution
       const handleLog = (logPayload: any) => {
         const message = logPayload.message || logPayload.data || ''
+        console.log('[InterviewPage] 📝 Log received for execution', executionId, ':', message)
         setLogs((prev) => prev + message + '\n')
       }
 
       const handleCompleted = () => {
+        console.log('[InterviewPage] ✅ Execution completed:', executionId)
         setIsExecuting(false)
-        socket.off(`execution-log-${executionId}`, handleLog)
-        socket.off(`execution-completed-${executionId}`, handleCompleted)
+
+        // Clean up listeners for this execution
+        const listeners = executionListenersRef.current.get(executionId)
+        if (listeners) {
+          socket.off(`execution-log-${executionId}`, listeners.handleLog)
+          socket.off(`execution-completed-${executionId}`, listeners.handleCompleted)
+        }
+        executionListenersRef.current.delete(executionId)
+
         socket.emit('leave-execution', executionId)
       }
 
+      // Store references to allow cleanup
+      executionListenersRef.current.set(executionId, { handleLog, handleCompleted })
+
+      // Register listeners
       socket.on(`execution-log-${executionId}`, handleLog)
       socket.on(`execution-completed-${executionId}`, handleCompleted)
     }
@@ -209,7 +219,15 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
     socket.on(`session-execution-started-${sessionId}`, handleExecutionStarted)
 
     return () => {
+      // Cleanup all listeners
       socket.off(`session-execution-started-${sessionId}`, handleExecutionStarted)
+      
+      // Remove all execution listeners
+      executionListenersRef.current.forEach((listeners, executionId) => {
+        socket.off(`execution-log-${executionId}`, listeners.handleLog)
+        socket.off(`execution-completed-${executionId}`, listeners.handleCompleted)
+      })
+      executionListenersRef.current.clear()
     }
   }, [sessionId])
 
@@ -338,26 +356,8 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
         sessionId,
         String(currentChallenge.id)
       )
-      const executionId = response.data.execution.id
-
-      const socket = executionService.connect()
-      if (socket) {
-        socket.emit('join-execution', executionId)
-
-        const handleLog = (payload: any) => {
-          const message = payload.message || payload.data || ''
-          setLogs((prev) => prev + message + '\n')
-        }
-
-        const handleCompleted = () => {
-          setIsExecuting(false)
-          socket.off(`execution-log-${executionId}`, handleLog)
-          socket.off(`execution-completed-${executionId}`, handleCompleted)
-        }
-
-        socket.on(`execution-log-${executionId}`, handleLog)
-        socket.on(`execution-completed-${executionId}`, handleCompleted)
-      }
+      // O listener será registrado pelo useEffect principal via evento 'session-execution-started-{sessionId}'
+      // Apenas dispara a execução e deixa o controle dos logs para o efeito
     } catch (err) {
       setLogs(`Erro: ${err}\n`)
       setIsExecuting(false)

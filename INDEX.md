@@ -1,173 +1,341 @@
-# 📖 Índice de Documentação - SourceRank
+# 📚 Índice de Documentação - SourceRank
 
-## 🚀 Começar Aqui
-
-### 1. [README.md](README.md) - **LEIA PRIMEIRO**
-   - Visão geral do projeto
-   - Stack técnico completo
-   - Como rodar com Docker
-   - Credenciais de teste
-   - Funcionalidades principais
-
-### 2. [STRUCTURE.md](STRUCTURE.md) - Arquitetura
-   - Estrutura completa de pastas
-   - Fluxo de dados visual
-   - Endpoints da API
-   - Tecnologias utilizadas
-   - Requisitos de sistema
+Guia completo para navegar pela documentação do projeto.
 
 ---
 
-## 👨‍💻 Para Desenvolvedores
+## 🚀 Para Começar Rápido
 
-### 3. [DEVELOPMENT.md](DEVELOPMENT.md) - Guia de Dev
-   - Setup local (sem Docker)
-   - Estrutura de código
-   - Como adicionar componentes
-   - Adicionar novas linguagens
-   - Adicionar persistência
-   - Debugging
+**Tem 5 minutos?** Leia [QUICKSTART.md](./QUICKSTART.md)
 
-### 4. [API_EXAMPLES.md](API_EXAMPLES.md) - Exemplos de Uso
-   - Exemplos de requisições HTTP
-   - Exemplos WebSocket/Socket.io
-   - Exemplo completo de fluxo
-   - JavaScript puro
-   - Codes de erro
+**Quer entender o projeto?** Leia [DESCRIPTION.md](./DESCRIPTION.md)
 
 ---
 
-## 🏭 Para Produção
+## 📖 Documentação Principal
 
-### 5. [DEPLOYMENT.md](DEPLOYMENT.md) - Produção
-   - Verificação de instalação
-   - Troubleshooting detalhado
-   - Monitoramento
-   - Performance
-   - Segurança em produção
-   - Deployment options (VPS, Kubernetes, Heroku)
-   - Backup & Restore
-   - Checklist de launch
-
----
-
-## ✅ Gerenciamento
-
-### 6. [CHECKLIST.md](CHECKLIST.md) - Status
-   - Lista de funcionalidades implementadas
-   - Funcionalidades pendentes
-   - Integrações futuras
-   - Resumo de status
+### 1. [README.md](./README.md)
+**O que é?** Visão geral do projeto  
+**Público:** Todos  
+**Tempo de leitura:** 5 min  
+**Conteúdo:**
+- Visão geral do projeto
+- Stack técnico resumido
+- Funcionalidades principais
+- Como executar
 
 ---
 
-## 📋 Sumário Rápido
+### 2. [DESCRIPTION.md](./DESCRIPTION.md)
+**O que é?** Descrição completa e detalhada  
+**Público:** Product Managers, Arquitetos, Desenvolvedores  
+**Tempo de leitura:** 20 min  
+**Conteúdo:**
+- Descrição detalhada do projeto
+- Arquitetura técnica completa
+- Diagramas de componentes
+- Fluxo de dados por operação
+- Stack de tecnologias
+- Estrutura de arquivos
+- Segurança (MVP vs Produção)
 
-| Seção | Arquivo | Objetivo | Para Quem |
-|-------|---------|----------|----------|
-| Começar | README.md | Overview + Setup | Todos |
-| Arquitetura | STRUCTURE.md | Entender estrutura | Devs + Leads |
-| Desenvolvimento | DEVELOPMENT.md | Guia prático | Devs |
-| Exemplos | API_EXAMPLES.md | Usar a API | Devs |
-| Produção | DEPLOYMENT.md | Deploy + Debug | DevOps/Leads |
-| Status | CHECKLIST.md | Track progress | PMs/Leads |
-
----
-
-## 🎯 Por Caso de Uso
-
-### "Quero subir a aplicação agora"
-1. Leia: [README.md](README.md) seção "Como Rodar"
-2. Execute: `./start.sh` ou `docker compose up --build`
-3. Acesse: http://localhost:5173
-
-### "Quero entender a arquitetura"
-1. Leia: [STRUCTURE.md](STRUCTURE.md)
-2. Visualize: Fluxo de dados e endpoints
-3. Estude: Componentes e serviços
-
-### "Quero adicionar uma feature"
-1. Leia: [DEVELOPMENT.md](DEVELOPMENT.md)
-2. Verifique: Exemplos de adicionar linguagem/desafio
-3. Consulte: [API_EXAMPLES.md](API_EXAMPLES.md)
-
-### "Preciso fazer deploy em produção"
-1. Leia: [DEPLOYMENT.md](DEPLOYMENT.md) - Segurança
-2. Siga: Checklist de launch
-3. Configure: Monitoramento e backup
-
-### "A aplicação não funciona"
-1. Verifique: [DEPLOYMENT.md](DEPLOYMENT.md) - Troubleshooting
-2. Consulte: Logs (`docker logs sr_api`)
-3. Debug: [DEVELOPMENT.md](DEVELOPMENT.md) - Debugging
-
-### "Quero ver exemplos de uso da API"
-1. Acesse: [API_EXAMPLES.md](API_EXAMPLES.md)
-2. Copy-paste: Exemplos com curl/JavaScript
-3. Teste: No seu cliente HTTP favorito
+**👉 Leia isto primeiro para entender tudo!**
 
 ---
 
-## 📊 Árvore de Leitura Recomendada
+### 3. [QUICKSTART.md](./QUICKSTART.md)
+**O que é?** Guia de inicialização rápida  
+**Público:** Desenvolvedores, DevOps  
+**Tempo de leitura:** 5 min  
+**Conteúdo:**
+- Pré-requisitos
+- Comandos de startup
+- URLs de acesso
+- Credenciais de teste
+- Testes rápidos
+- Troubleshooting básico
+
+**👉 Use isto para colocar rodando!**
+
+---
+
+### 4. [ARCHITECTURE.md](./ARCHITECTURE.md)
+**O que é?** Arquitetura técnica detalhada  
+**Público:** Arquitetos, Desenvolvedores sênior  
+**Tempo de leitura:** 30 min  
+**Conteúdo:**
+- Padrões de arquitetura
+- Componentes e responsabilidades
+- Fluxos de sincronização
+- WebSocket e real-time
+- CRDT (Conflict-free Replicated Data Types)
+- Tratamento de race conditions
+- Performance e otimizações
+
+**👉 Leia isto para entender "por quê" das decisões!**
+
+---
+
+### 5. [API_EXAMPLES.md](./API_EXAMPLES.md)
+**O que é?** Exemplos de endpoints REST  
+**Público:** Desenvolvedores Frontend/Backend  
+**Tempo de leitura:** 15 min  
+**Conteúdo:**
+- Endpoints REST com exemplos
+- Requisições e respostas
+- Códigos de status HTTP
+- WebSocket events
+- Autenticação JWT
+
+**👉 Use isto para integrar ou consumir a API!**
+
+---
+
+### 6. [Modelagem_dados.md](./Modelagem_dados.md)
+**O que é?** Schema do banco de dados  
+**Público:** Desenvolvedores Backend, DBAs  
+**Tempo de leitura:** 25 min  
+**Conteúdo:**
+- Diagrama Entidade-Relacionamento (ERD)
+- Descrição de cada tabela
+- Campos e tipos
+- Constraints e integridade
+- Índices para performance
+- Fluxo de dados por operação
+- Queries úteis
+- Backup e recovery
+
+**👉 Use isto para entender o modelo de dados!**
+
+---
+
+### 7. [DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md)
+**O que é?** Guia para desenvolvedores  
+**Público:** Desenvolvedores (contribuintes)  
+**Tempo de leitura:** 20 min  
+**Conteúdo:**
+- Setup do ambiente de desenvolvimento
+- Como contribuir
+- Padrões de código
+- Testes automatizados
+- Debugging
+- Build e deploy
+
+**👉 Leia isto se quer contribuir!**
+
+---
+
+### 8. [PROJECT_STATUS.md](./PROJECT_STATUS.md)
+**O que é?** Status atual e roadmap  
+**Público:** Product Managers, Stakeholders  
+**Tempo de leitura:** 10 min  
+**Conteúdo:**
+- Status do projeto (MVP, v1.0, etc)
+- Funcionalidades completadas
+- Bugs conhecidos
+- Roadmap futuro
+- Prioridades
+
+**👉 Use isto para entender o progresso!**
+
+---
+
+## 🔧 Arquivos de Configuração
+
+### migrations/001_initial_schema.sql
+**O que é?** Schema e seeds do banco de dados  
+**Público:** DBAs, Desenvolvedores Backend  
+**Conteúdo:**
+- DDL completo (CREATE TABLE, INDEX)
+- DML para seeds (INSERT)
+- 10 desafios pré-configurados
+- Starter codes para 6 linguagens
+- Usuário system
+
+---
+
+## 📂 Estrutura de Documentação
 
 ```
-┌─ README.md (visão geral)
+📚 Documentação/
 │
-├─ 🤔 "Como funciona?" ──→ STRUCTURE.md
+├─ 🟢 COMEÇAR AQUI
+│  ├─ README.md
+│  └─ QUICKSTART.md
 │
-├─ 👨‍💻 "Vou desenvolver" ──→ DEVELOPMENT.md
-│                        └─ API_EXAMPLES.md (para integrar)
+├─ 📖 ENTENDER
+│  ├─ DESCRIPTION.md (descrição completa)
+│  ├─ ARCHITECTURE.md (arquitetura)
+│  └─ PROJECT_STATUS.md (status)
 │
-└─ 🚀 "Vou fazer deploy" ──→ DEPLOYMENT.md
-                        └─ CHECKLIST.md (antes de launch)
+├─ 💻 DESENVOLVER
+│  ├─ API_EXAMPLES.md (REST endpoints)
+│  ├─ DEVELOPMENT_GUIDE.md (dev setup)
+│  └─ Modelagem_dados.md (banco de dados)
+│
+└─ 🗄️ BANCO DE DADOS
+   └─ migrations/001_initial_schema.sql
 ```
 
 ---
 
-## 🔗 Links Rápidos
+## 📊 Matriz de Conteúdo por Público
 
-- **Frontend**: http://localhost:5173
-- **API**: http://localhost:4000
-- **Docker Compose**: Ver [docker-compose.yml](docker-compose.yml)
+### Product Manager / Gestor
+**Comece com:**
+1. README.md (5 min)
+2. DESCRIPTION.md (20 min)
+3. PROJECT_STATUS.md (10 min)
 
----
-
-## 📞 Suporte
-
-### Se encontrar erro:
-1. Buscar em [DEPLOYMENT.md](DEPLOYMENT.md) > Troubleshooting
-2. Verificar logs: `docker logs sr_api` / `sr_runner` / `sr_web`
-3. Consultar [DEVELOPMENT.md](DEVELOPMENT.md) > Debugging
-
-### Se quiser adicionar feature:
-1. Consultar [DEVELOPMENT.md](DEVELOPMENT.md)
-2. Seguir exemplos em [API_EXAMPLES.md](API_EXAMPLES.md)
-3. Atualizar [CHECKLIST.md](CHECKLIST.md) quando pronto
-
-### Se quiser atualizar documentação:
-- Editar arquivo `.md` correspondente
-- Manter consistência com estrutura
-- Atualizar este índice se necessário
+**Total:** 35 minutos
 
 ---
 
-## 📝 Versionamento de Docs
+### Desenvolvedor Frontend
+**Comece com:**
+1. QUICKSTART.md (5 min)
+2. DESCRIPTION.md (20 min)
+3. API_EXAMPLES.md (15 min)
+4. ARCHITECTURE.md (30 min)
 
-| Versão | Data | Notas |
-|--------|------|-------|
-| 1.0 | 2 Jan 2026 | Versão inicial completa (MVP) |
-
----
-
-## ✨ Dicas Úteis
-
-- Sempre comece pelo [README.md](README.md)
-- Use `Ctrl+F` para buscar palavras-chave nos docs
-- Cada arquivo `.md` é autoexplicativo e pode ser lido independentemente
-- Exemplos em [API_EXAMPLES.md](API_EXAMPLES.md) podem ser copiados diretamente
+**Total:** 70 minutos
 
 ---
 
-**Última atualização**: 2 de janeiro de 2026
+### Desenvolvedor Backend
+**Comece com:**
+1. QUICKSTART.md (5 min)
+2. DESCRIPTION.md (20 min)
+3. Modelagem_dados.md (25 min)
+4. API_EXAMPLES.md (15 min)
+5. ARCHITECTURE.md (30 min)
+6. DEVELOPMENT_GUIDE.md (20 min)
 
-Bom desenvolvimento! 🚀
+**Total:** 115 minutos
+
+---
+
+### DevOps / Infraestrutura
+**Comece com:**
+1. QUICKSTART.md (5 min)
+2. ARCHITECTURE.md (30 min)
+3. docker-compose.yml
+4. migrations/001_initial_schema.sql
+
+**Total:** 35 minutos
+
+---
+
+### Arquiteto de Software
+**Comece com:**
+1. DESCRIPTION.md (20 min)
+2. ARCHITECTURE.md (30 min)
+3. Modelagem_dados.md (25 min)
+4. PROJECT_STATUS.md (10 min)
+
+**Total:** 85 minutos
+
+---
+
+## 🔍 Como Encontrar Resposta para...
+
+### "Como faço para colocar rodando?"
+👉 [QUICKSTART.md](./QUICKSTART.md)
+
+### "Como a sincronização funciona?"
+👉 [ARCHITECTURE.md](./ARCHITECTURE.md) + [DESCRIPTION.md](./DESCRIPTION.md)
+
+### "Quais são os endpoints disponíveis?"
+👉 [API_EXAMPLES.md](./API_EXAMPLES.md)
+
+### "Como o banco de dados está estruturado?"
+👉 [Modelagem_dados.md](./Modelagem_dados.md)
+
+### "Como contribuir com código?"
+👉 [DEVELOPMENT_GUIDE.md](./DEVELOPMENT_GUIDE.md)
+
+### "Qual é o status do projeto?"
+👉 [PROJECT_STATUS.md](./PROJECT_STATUS.md)
+
+### "Qual é a visão geral?"
+👉 [DESCRIPTION.md](./DESCRIPTION.md)
+
+---
+
+## ✅ Checklist de Leitura (Novo Desenvolvedor)
+
+- [ ] Leu README.md
+- [ ] Leu QUICKSTART.md e rodou `docker compose up`
+- [ ] Leu DESCRIPTION.md
+- [ ] Leu ARCHITECTURE.md
+- [ ] Leu API_EXAMPLES.md
+- [ ] Leu Modelagem_dados.md
+- [ ] Fez login em http://localhost:5173
+- [ ] Criou uma sessão de teste
+- [ ] Testou sincronização de código
+- [ ] Testou troca de linguagem
+- [ ] Leu DEVELOPMENT_GUIDE.md
+
+**Total:** ~2 horas
+
+---
+
+## 📞 Perguntas Frequentes
+
+**P: Por onde começo?**  
+R: Comece pelo README.md, depois QUICKSTART.md, depois DESCRIPTION.md.
+
+**P: Onde encontro exemplos de API?**  
+R: Consulte API_EXAMPLES.md
+
+**P: Como debugo uma issue?**  
+R: Verifique QUICKSTART.md (Troubleshooting) e DEVELOPMENT_GUIDE.md
+
+**P: Qual é a estrutura do banco?**  
+R: Veja Modelagem_dados.md
+
+**P: Como contribuo com código?**  
+R: Leia DEVELOPMENT_GUIDE.md
+
+---
+
+## 🎯 Roadmap de Leitura Recomendado
+
+### Semana 1 (Onboarding)
+- [ ] README.md
+- [ ] QUICKSTART.md
+- [ ] DESCRIPTION.md
+- [ ] Fazer teste manual
+
+### Semana 2 (Conhecimento Técnico)
+- [ ] ARCHITECTURE.md
+- [ ] Modelagem_dados.md
+- [ ] API_EXAMPLES.md
+
+### Semana 3+ (Contribuições)
+- [ ] DEVELOPMENT_GUIDE.md
+- [ ] Começar a contribuir
+
+---
+
+## 📝 Versionamento de Documentação
+
+- **Versão:** 1.0.0
+- **Última atualização:** 8 de janeiro de 2026
+- **Compatibilidade:** SourceRank v1.0.0+
+
+---
+
+## 🚀 Próximos Passos
+
+1. **Comece pelo README.md** (5 min)
+2. **Rode o QUICKSTART.md** (5 min)
+3. **Leia DESCRIPTION.md** (20 min)
+4. **Escolha seu caminho** baseado na matriz acima
+
+**Tempo total para começar:** 30 minutos ⏱️
+
+---
+
+**Precisa de ajuda?** Verifique os troubleshooting em [QUICKSTART.md](./QUICKSTART.md#-troubleshooting-rápido)
+
