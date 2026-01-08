@@ -90,6 +90,55 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
     load()
   }, [sessionId])
 
+  // Recover preferred language on mount/sessionId change
+  useEffect(() => {
+    if (!sessionId) return
+
+    const recoverLanguage = async () => {
+      try {
+        console.log('[InterviewPage] Recovering preferred language from session...')
+        const lang = await apiService.getPreferredLanguage(sessionId)
+        console.log('[InterviewPage] ✅ Recovered language:', lang)
+        setLanguage(lang)
+      } catch (err) {
+        console.error('[InterviewPage] Error recovering language:', err)
+        // Keep current language as fallback
+      }
+    }
+
+    recoverLanguage()
+  }, [sessionId])
+
+  // Persist current content to DB on mount (recovery/reload scenario)
+  useEffect(() => {
+    if (!sessionId || !currentCodeRef.current) return
+
+    const persistOnMount = async () => {
+      try {
+        console.log('[InterviewPage] 💾 Persisting content on mount (recovery scenario)')
+        const currentIndex = useUIStore.getState().currentChallengeIndex
+        const currentChallenge = challenges[currentIndex]
+
+        if (currentChallenge && currentCodeRef.current) {
+          await apiService.persistContent(
+            sessionId,
+            String(currentChallenge.id),
+            currentCodeRef.current,
+            language,
+            null, // No previous language
+            null
+          )
+        }
+      } catch (err) {
+        console.warn('[InterviewPage] Failed to persist on mount:', err)
+      }
+    }
+
+    // Delay slightly to ensure CodeEditor is fully mounted and content is loaded
+    const timer = setTimeout(persistOnMount, 500)
+    return () => clearTimeout(timer)
+  }, [sessionId, language, challenges.length])
+
   // Join session room
   useEffect(() => {
     if (!sessionId) return
@@ -179,12 +228,50 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
   const handleLanguageChange = useCallback((newLanguage: string) => {
     console.log('[InterviewPage] 🔄 Language change:', { from: language, to: newLanguage })
     
+    const previousLanguage = language
+    const previousContent = currentCodeRef.current
+
     setLanguage(newLanguage)
     
+    // Recover content for new language from BD (will auto-load starter if not exists)
+    if (sessionId && currentChallenge) {
+      console.log('[InterviewPage] 📥 Loading content for new language:', newLanguage)
+      apiService.getChallengeContent(sessionId, currentChallenge.id, newLanguage)
+        .then(response => {
+          console.log('[InterviewPage] ✅ Loaded content for language:', { language: newLanguage, length: response.data.content.length })
+          // CodeEditor hook will automatically use this when language changes in queryKey
+        })
+        .catch(err => {
+          console.error('[InterviewPage] Failed to load content for new language:', err)
+        })
+    }
+
     // Update language - hook will reload content for this language
     // If no content exists for this language → CodeEditor auto-applies starter
     if (updateLanguageRef.current) {
       updateLanguageRef.current(newLanguage)
+    }
+
+    // Save preferred language to session
+    if (sessionId) {
+      apiService.updatePreferredLanguage(sessionId, newLanguage).catch(err => {
+        console.error('[InterviewPage] Failed to save preferred language:', err)
+      })
+    }
+
+    // Persist content with history (language switch scenario)
+    if (sessionId && currentChallenge && previousContent) {
+      console.log('[InterviewPage] 💾 Persisting language switch:', { from: previousLanguage, to: newLanguage })
+      apiService.persistContent(
+        sessionId,
+        String(currentChallenge.id),
+        previousContent, // Save old content
+        newLanguage,
+        previousLanguage, // Mark what we're switching from
+        previousContent
+      ).catch(err => {
+        console.error('[InterviewPage] Failed to persist language change:', err)
+      })
     }
     
     // Broadcast to peers
@@ -192,7 +279,7 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
     if (socket && sessionId) {
       socket.emit(`session-language-changed-${sessionId}`, { language: newLanguage })
     }
-  }, [language, sessionId])
+  }, [language, sessionId, currentChallenge])
 
   const handleNavigate = (newIndex: number) => {
     if (newIndex < 0 || newIndex >= challenges.length) return
@@ -203,9 +290,43 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
       updateContentRef.current(currentCodeRef.current)
     }
 
+    // Persist current challenge content before navigating (challenge switch scenario)
+    if (sessionId && currentChallenge && currentCodeRef.current) {
+      console.log('[InterviewPage] 📸 Persisting challenge before navigate:', currentChallenge.id)
+      apiService.persistContent(
+        sessionId,
+        String(currentChallenge.id),
+        currentCodeRef.current, // Save current content
+        language,
+        null, // No previous language (same challenge)
+        null
+      ).catch(err => {
+        console.error('[InterviewPage] Failed to persist before navigate:', err)
+      })
+    }
+
     // Update current challenge in database for persistence on page reload
     const newChallenge = challenges[newIndex]
     if (newChallenge && sessionId) {
+      // Recover preferred language for this session
+      apiService.getPreferredLanguage(sessionId).then(lang => {
+        console.log('[InterviewPage] 🔄 Recovered language for new challenge:', lang)
+        setLanguage(lang)
+      }).catch(err => {
+        console.error('[InterviewPage] Failed to recover language:', err)
+      })
+
+      // Load content for new challenge with preferred language
+      apiService.getPreferredLanguage(sessionId).then(lang => {
+        console.log('[InterviewPage] 📥 Loading content for new challenge:', { challengeId: newChallenge.id, language: lang })
+        return apiService.getChallengeContent(sessionId, newChallenge.id, lang)
+      }).then(response => {
+        console.log('[InterviewPage] ✅ Loaded content for new challenge:', { length: response.data.content.length })
+        // CodeEditor hook will automatically fetch when challengeId changes in queryKey
+      }).catch(err => {
+        console.error('[InterviewPage] Failed to load content for new challenge:', err)
+      })
+
       console.log('[InterviewPage] 📌 Updating current challenge in DB:', newChallenge.id)
       apiService.updateSessionChallenge(sessionId, newChallenge.id).catch(err => {
         console.error('[InterviewPage] Failed to update session challenge:', err)

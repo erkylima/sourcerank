@@ -160,4 +160,56 @@ router.get('/:sessionId/challenges/:challengeId/languages', authenticateToken, a
   }
 })
 
+/**
+ * GET /session-content/sessions/:sessionId/preferred-language
+ * Get preferred language for entire session (not per-challenge)
+ */
+router.get('/sessions/:sessionId/preferred-language', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.params
+
+    if (!sessionId) {
+      res.status(400).json({ error: 'Missing sessionId' })
+      return
+    }
+
+    console.log('[SessionContentController] GET preferred language for session:', { sessionId })
+    const language = await sessionContentService.getSessionPreferredLanguage(sessionId)
+
+    res.send(language) // Send as plain text
+  } catch (err: any) {
+    console.error('[SessionContentController] Error getting session preferred language:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+/**
+ * PATCH /session-content/sessions/:sessionId/preferred-language
+ * Update preferred language for entire session
+ */
+router.patch('/sessions/:sessionId/preferred-language', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.params
+    const { language } = req.body
+
+    if (!sessionId) {
+      res.status(400).json({ error: 'Missing sessionId' })
+      return
+    }
+
+    if (!language) {
+      res.status(400).json({ error: 'Missing language' })
+      return
+    }
+
+    console.log('[SessionContentController] PATCH preferred language for session:', { sessionId, language })
+    const result = await sessionContentService.updateSessionPreferredLanguage(sessionId, language)
+
+    res.json(result)
+  } catch (err: any) {
+    console.error('[SessionContentController] Error updating session preferred language:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 export default router

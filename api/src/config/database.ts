@@ -48,6 +48,7 @@ export const initializeDatabase = async () => {
         interviewer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         interviewee_id UUID REFERENCES users(id) ON DELETE SET NULL,
         current_challenge_id INTEGER REFERENCES challenges(id) ON DELETE CASCADE,
+        preferred_language VARCHAR(50) DEFAULT 'python',
         status VARCHAR(50) NOT NULL CHECK (status IN ('pending', 'active', 'completed', 'cancelled', 'expired')),
         session_code VARCHAR(20),
         interviewee_accepted BOOLEAN DEFAULT false,

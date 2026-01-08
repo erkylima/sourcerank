@@ -7,6 +7,7 @@ import executionRoutes from './modules/execution/execution.routes'
 import crdtRoutes from './modules/crdt/crdt.routes'
 import relayRoutes from './modules/crdt/relay.routes'
 import sessionContentRoutes from './modules/session-content/session-content.routes'
+import contentPersistRoutes from './modules/session-content/content-persist.routes'
 import { AppError } from './utils/errors'
 
 export function createApp(): Express {
@@ -25,6 +26,7 @@ export function createApp(): Express {
   app.use('/crdt', crdtRoutes)
   app.use('/relay', relayRoutes)
   app.use('/session-content', sessionContentRoutes)
+  app.use('/content', contentPersistRoutes)
 
   // Health check
   app.get('/health', (_req: Request, res: Response) => {

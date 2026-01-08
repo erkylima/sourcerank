@@ -47,14 +47,9 @@ export class PollingService {
    */
   private async pollAllSessions() {
     try {
-      // Get all active sessions from relay
-      // For now, we query the session_challenge_content table to find active sessions
+      // Get all active sessions (not just ones with content)
       const result = await query(
-        `SELECT DISTINCT 
-          session_id, challenge_id, content_type, language
-         FROM session_challenge_content 
-         WHERE updated_at > NOW() - INTERVAL '5 minutes'
-         LIMIT 100`,
+        `SELECT id FROM sessions WHERE status = 'active' LIMIT 100`,
         []
       )
 
@@ -67,18 +62,28 @@ export class PollingService {
 
       console.log(`[PollingService] 🔄 Polling ${activeSessions.length} active sessions...`)
 
+      // Get all challenges for polling
+      const challengesResult = await query(`SELECT id FROM challenges LIMIT 50`, [])
+      const challenges = challengesResult.rows || []
+
+      const languages = ['python', 'javascript', 'typescript', 'java', 'go', 'csharp', 'cpp']
+
       let changesCount = 0
       for (const session of activeSessions) {
-        try {
-          const changed = await this.pollSession(
-            session.session_id,
-            session.challenge_id,
-            session.content_type,
-            session.language
-          )
-          if (changed) changesCount++
-        } catch (err) {
-          console.error('[PollingService] Error polling session:', { session, err })
+        for (const challenge of challenges) {
+          for (const language of languages) {
+            try {
+              const changed = await this.pollSession(
+                session.id,
+                challenge.id,
+                'code',
+                language
+              )
+              if (changed) changesCount++
+            } catch (err) {
+              // Silently skip - not all combinations will exist
+            }
+          }
         }
       }
 

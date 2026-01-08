@@ -53,6 +53,41 @@ export const apiService = {
     axiosInstance.patch(`/sessions/${sessionId}/end`, {}),
   updateSessionChallenge: (sessionId: string, challengeId: number) =>
     axiosInstance.patch(`/sessions/${sessionId}/challenge`, { challengeId }),
-}
 
+  // CRDT - Force snapshot to save to DB immediately
+  forceSnapshotSave: (sessionId: string, challengeId: string) =>
+    axiosInstance.post(`/crdt/snapshot`, { sessionId, challengeId }),
+
+  // Preferred language - Session-wide language preference
+  getPreferredLanguage: (sessionId: string) =>
+    axiosInstance.get(`/session-content/sessions/${sessionId}/preferred-language`),
+  updatePreferredLanguage: (sessionId: string, language: string) =>
+    axiosInstance.patch(`/session-content/sessions/${sessionId}/preferred-language`, { language }),
+
+  // Content persistence - Unified endpoint for 3 scenarios (reload, language switch, challenge switch)
+  persistContent: (
+    sessionId: string,
+    challengeId: string,
+    currentContent: string,
+    currentLanguage: string,
+    previousLanguage?: string,
+    previousContent?: string
+  ) =>
+    axiosInstance.post('/content/persist', {
+      sessionId,
+      challengeId,
+      contentType: 'code',
+      currentLanguage,
+      currentContent,
+      previousLanguage: previousLanguage || undefined,
+      previousContent: previousContent || undefined,
+      forceSnapshot: true
+    }),
+
+  // Get content for a challenge in a session and language
+  getChallengeContent: (sessionId: string, challengeId: number | string, language: string) =>
+    axiosInstance.get(`/session-content/${sessionId}/challenges/${challengeId}`, {
+      params: { contentType: 'code', language }
+    }),
+}
 export default apiService

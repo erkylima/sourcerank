@@ -1,28 +1,23 @@
-import axios from 'axios'
-
-const RELAY_URL = process.env.YJS_RELAY_URL || 'http://yjs-relay:1234'
-
 class CrdtService {
   /**
    * Force save snapshot on the relay server
    * This ensures the current state is persisted when user switches challenges
+   * NOTE: This calls the relay API handler which interacts with the Yjs relay
    */
   async forceSnapshotSave(sessionId: string, challengeId: string, contentType: string = 'code') {
     try {
-      const response = await axios.post(
-        `${RELAY_URL}/snapshot`,
-        {
-          sessionId,
-          challengeId,
-          contentType,
-        },
-        {
-          timeout: 5000,
-        }
+      // Call the relay controller directly (not the Yjs relay)
+      // The relay.routes handler will interact with the Yjs relay server
+      const relayController = require('./relay.controller').default
+      
+      const result = await relayController.forceSnapshot(
+        sessionId,
+        challengeId,
+        contentType
       )
 
       console.log(`[crdtService] ✅ Snapshot saved for ${sessionId}:${challengeId}:${contentType}`)
-      return response.data
+      return result
     } catch (err: any) {
       console.error(`[crdtService] ❌ Failed to save snapshot:`, err.message)
       // Don't throw - snapshot save failure shouldn't block UI

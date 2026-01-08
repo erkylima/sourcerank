@@ -134,7 +134,7 @@ async function getSessionWithSnapshot(sessionId, challengeId, contentType = 'def
  * Get snapshot only if it has changed since last poll
  * Used by API polling to decide whether to persist to database
  */
-function getSnapshotIfChanged(sessionId, challengeId, contentType = 'default', language = 'default') {
+function getSnapshotIfChanged(sessionId, challengeId, contentType = 'code', language = 'python') {
   const key = getSessionKey(sessionId, challengeId, contentType, language)
   const session = sessions.get(key)
   

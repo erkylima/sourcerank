@@ -46,8 +46,24 @@ export function useChallengeContent(
       console.log('[useChallengeContent] Loaded from DB:', {
         challengeId: normalizedChallengeId,
         contentLength: loaded.content.length,
-        started: loaded.started
+        started: loaded.started,
+        isStarter: loaded.isStarter
       })
+      
+      // If starter was loaded, save to DB so polling can find it
+      if (loaded.isStarter) {
+        console.log('[useChallengeContent] Saving starter to DB for polling...')
+        repository.save(
+          sessionId,
+          parseInt(normalizedChallengeId),
+          loaded.content,
+          language,
+          contentType,
+          false
+        ).catch(err => {
+          console.error('[useChallengeContent] Error saving starter:', err)
+        })
+      }
       
       // Initialize synced content from DB
       setSyncedContent(loaded.content)
@@ -69,7 +85,12 @@ export function useChallengeContent(
       return
     }
 
-    console.log('[useChallengeContent] Subscribing to CRDT for:', { sessionId, challengeId: normalizedChallengeId })
+    console.log('[useChallengeContent] Subscribing to CRDT for:', { 
+      sessionId, 
+      challengeId: normalizedChallengeId,
+      language: data.language,
+      dataReady: !!data
+    })
 
     // Subscribe and get updates
     const unsub = repository.subscribe(
