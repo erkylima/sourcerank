@@ -1,3 +1,126 @@
+/* Garante que o conteúdo principal nunca ultrapasse a tela e tenha margens internas */
+.main-content {
+  flex: 1 1 0%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 100vh;
+  height: 100vh;
+  box-sizing: border-box;
+  padding: 12px 12px 12px 12px;
+  overflow: auto;
+}
+
+.main-content-vertical-split {
+  flex: 1 1 0%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-secondary);
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+.vertical-split-grid {
+  flex: 1 1 0%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+}
+
+.vertical-split-code {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 0%;
+  height: 90%;
+  margin-bottom: 100px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.vertical-split-right {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 90%;
+  min-height: 0;
+  flex: 1 1 0%;
+  overflow: hidden;
+  gap: 8px;
+}
+
+.vertical-split-challenge {
+  flex: 1 1 0%;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--bg-primary);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+.vertical-split-terminal {
+  flex: 1 1 0%;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
+  background: var(--bg-primary);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  box-sizing: border-box;
+}
+.main-content-split {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-secondary);
+}
+
+.split-grid-area {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 420px;
+  gap: 16px;
+  min-height: 0;
+  height: 100%;
+}
+
+.split-code {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.split-right {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.split-right .challenge-view {
+  margin-bottom: 12px;
+}
+
+.split-right .execution-terminal {
+  flex: 1;
+  min-height: 180px;
+  max-height: 320px;
+}
 .interview-session {
   display: flex;
   flex-direction: column;
@@ -85,11 +208,11 @@
 }
 
 .session-sidebar {
-  width: 300px;
+  width: 340px;
   background: var(--bg-primary);
   border-right: 1px solid var(--border-light);
   padding: 16px;
-  overflow-y: auto;
+  overflow-y: hidden;
 }
 
 .session-main {
@@ -197,15 +320,44 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
+  height: 100%;
+  min-height: 0;
 }
 
-.interview-page .main-content {
+
+.main-content-grid {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background: var(--bg-secondary);
+  padding: 16px;
+  gap: 16px;
+}
+
+.main-grid-area {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 12px;
+  height: 100%;
+  min-height: 0;
+}
+
+.main-grid-area .challenge-view {
+  margin-bottom: 0;
+}
+
+.main-grid-area .editor-loading,
+.main-grid-area .CodeEditor {
+  min-height: 0;
+  height: 100%;
+}
+
+.main-grid-area .execution-terminal {
+  min-height: 180px;
+  max-height: 260px;
+  height: 100%;
 }
 
 .interview-page .header {
@@ -213,6 +365,9 @@
   border-bottom: 1px solid var(--border-light);
   padding: 16px;
   display: flex;
+  flex-shrink: 0;
+  min-height: 64px;
+  z-index: 2;
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
@@ -281,13 +436,4 @@
 .interview-page .btn-execute:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-.interview-page .editor-section {
-  flex: 1;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  padding: 12px;
-  overflow: hidden;
 }

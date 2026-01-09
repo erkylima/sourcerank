@@ -37,51 +37,60 @@ export const ExecutionTerminal: React.FC<ExecutionTerminalProps> = ({ logs, isEx
 
     const fitAddon = new FitAddon()
     term.loadAddon(fitAddon)
-    
+
     try {
       term.open(terminalRef.current)
     } catch (err) {
       console.error('Error opening terminal:', err)
       return
     }
-    
+
     // Fit after DOM is ready - with safety checks
-    setTimeout(() => {
+    const fitIfVisible = () => {
       try {
-        if (fitAddon && terminalRef.current && terminalRef.current.offsetHeight > 0) {
+        if (
+          fitAddon &&
+          terminalRef.current &&
+          terminalRef.current.offsetHeight > 0 &&
+          terminalRef.current.offsetWidth > 0
+        ) {
           fitAddon.fit()
         }
       } catch (err) {
-        console.debug('Terminal fit not yet available (expected on initial render):', err)
+        // Silenciar erros de fit
       }
-    }, 100)
+    }
+    setTimeout(fitIfVisible, 100)
+
+    // ResizeObserver para garantir fit ao mudar tamanho do container
+    let resizeObserver: ResizeObserver | null = null
+    if (window.ResizeObserver) {
+      resizeObserver = new ResizeObserver(() => {
+        fitIfVisible()
+      })
+      resizeObserver.observe(terminalRef.current)
+    }
+
+    // Fallback para resize da janela
+    const handleResize = () => fitIfVisible()
+    window.addEventListener('resize', handleResize)
 
     terminalInstance.current = term
     fitAddonRef.current = fitAddon
 
-    const handleResize = () => {
-      try {
-        if (fitAddonRef.current && terminalRef.current && terminalRef.current.offsetHeight > 0) {
-          fitAddonRef.current.fit()
-        }
-      } catch (err) {
-        console.debug('Error fitting terminal on resize:', err)
-      }
-    }
-    window.addEventListener('resize', handleResize)
-
     return () => {
       window.removeEventListener('resize', handleResize)
+      if (resizeObserver && terminalRef.current) resizeObserver.disconnect()
       term.dispose()
     }
   }, [])
 
   useEffect(() => {
     if (!terminalInstance.current) return
-    
+
     // Clear terminal
     terminalInstance.current.clear()
-    
+
     if (logs) {
       // Split by lines and write each, filtering out empty lines
       const lines = logs.split('\n').filter(line => line.trim() !== '')
@@ -94,6 +103,13 @@ export const ExecutionTerminal: React.FC<ExecutionTerminalProps> = ({ logs, isEx
       // Only show "Terminal initialized." when there are no logs
       terminalInstance.current.writeln('Terminal initialized.')
     }
+
+    // Garantir fit após logs mudarem
+    setTimeout(() => {
+      if (fitAddonRef.current && terminalRef.current && terminalRef.current.offsetHeight > 0 && terminalRef.current.offsetWidth > 0) {
+        try { fitAddonRef.current.fit() } catch {}
+      }
+    }, 50)
   }, [logs])
 
   return <div ref={terminalRef} className="execution-terminal" />

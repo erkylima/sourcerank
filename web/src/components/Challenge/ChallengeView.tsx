@@ -53,7 +53,7 @@ export const ChallengeView: React.FC<ChallengeViewProps> = ({ challenge, session
           <pre>{challenge.inputExample}</pre>
         </div>
         <div className="example">
-          <h4>Saída esperada:</h4>
+          <h4>Saída:</h4>
           <pre>{challenge.outputExample}</pre>
         </div>
       </div>

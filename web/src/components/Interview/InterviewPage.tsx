@@ -376,16 +376,14 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
             onSelect={handleNavigate}
             canAdvance={true}
           />
-          {currentChallenge && <ChallengeView challenge={currentChallenge} sessionId={sessionId} />}
         </div>
       )}
 
-      <div className="main-content">
+      <div className="main-content" style={{display: 'flex', flexDirection: 'column', height: '100vh', minHeight: 0, maxHeight: '100vh', flex: 1, overflow: 'hidden'}}>
         <div className="header">
           <div className="role-info">
             <h1>{role === 'interviewer' ? 'Entrevistador' : 'Candidato'}</h1>
           </div>
-
           <div className="controls">
             <button onClick={() => handleNavigate(currentChallengeIndex - 1)} disabled={currentChallengeIndex === 0}>
               ← Anterior
@@ -395,7 +393,6 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
               Próximo →
             </button>
           </div>
-
           <div className="language-selector">
             <select value={language} onChange={(e) => handleLanguageChange(e.target.value)}>
               <option value="python">Python</option>
@@ -406,30 +403,39 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
               <option value="csharp">C#</option>
             </select>
           </div>
-
           {showExecutionTerminal && (
             <button onClick={handleExecute} disabled={isExecuting} className="btn-execute">
               {isExecuting ? 'Executando...' : 'Executar'}
             </button>
           )}
         </div>
-
-        <div className="editor-section">
-          {currentChallenge ? (
-            <CodeEditor
-              sessionId={sessionId}
-              challengeId={currentChallenge.id}
-              language={language}
-              onLanguageChange={setLanguage}
-              onUpdateLanguageRef={(fn) => { updateLanguageRef.current = fn }}
-              onUpdateContentRef={(fn) => { updateContentRef.current = fn }}
-              onContentChange={(content) => { currentCodeRef.current = content }}
-              onStartedChange={(started) => { currentStartedRef.current = started }}
-            />
-          ) : (
-            <div className="editor-loading">Loading challenge...</div>
-          )}
-          {showExecutionTerminal && <ExecutionTerminal logs={logs} isExecuting={isExecuting} />}
+        <div className="main-content-vertical-split" style={{flex: 1, minHeight: 0, height: '100%', maxHeight: '100%', overflow: 'hidden'}}>
+          <div className="vertical-split-grid">
+            <div className="vertical-split-code">
+              {currentChallenge ? (
+                <CodeEditor
+                  sessionId={sessionId}
+                  challengeId={currentChallenge.id}
+                  language={language}
+                  onLanguageChange={setLanguage}
+                  onUpdateLanguageRef={(fn) => { updateLanguageRef.current = fn }}
+                  onUpdateContentRef={(fn) => { updateContentRef.current = fn }}
+                  onContentChange={(content) => { currentCodeRef.current = content }}
+                  onStartedChange={(started) => { currentStartedRef.current = started }}
+                />
+              ) : (
+                <div className="editor-loading">Loading challenge...</div>
+              )}
+            </div>
+            <div className="vertical-split-right">
+              <div className="vertical-split-challenge">
+                {currentChallenge && <ChallengeView challenge={currentChallenge} sessionId={sessionId} />}
+              </div>
+              <div className="vertical-split-terminal">
+                {showExecutionTerminal && <ExecutionTerminal logs={logs} isExecuting={isExecuting} />}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

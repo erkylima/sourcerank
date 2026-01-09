@@ -1,8 +1,20 @@
+
 import { query } from '../../config/database'
 import { Challenge, Difficulty } from '../auth/auth.types'
 import { evaluateChallenge, ChallengeEvaluationResult } from './challenge.evaluation'
 
 export class ChallengeService {
+  /**
+   * Retorna os exemplos de input/output de avaliação do challenge
+   */
+  async getExamples(id: string, limit: number = 5): Promise<{input: string, output: string}[]> {
+    const result = await query(
+      'SELECT input_example, expected_output FROM challenges_evaluations WHERE challenge_id = $1 ORDER BY id ASC LIMIT $2',
+      [id, limit]
+    )
+    return result.rows.map(r => ({ input: r.input_example, output: r.expected_output }))
+  }
+
   /**
    * Avalia o challenge executando o code_example para cada input_example e comparando com expected_output.
    */

@@ -175,29 +175,34 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   }
 
   return (
-    <div className="code-editor-container">
+    <div
+      className="code-editor code-editor-container"
+      style={{ flex: 1, minHeight: 0, height: '100%', maxHeight: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+    >
       {isSaving && (
         <div className="saving-indicator">
           <span>💾 Salvando...</span>
         </div>
       )}
-      <Editor
-        key={`${sessionId}-${challengeId}`}
-        height="100%"
-        language={language}
-        defaultValue={displayContent}
-        onChange={handleEditorChange}
-        onMount={handleEditorDidMount}
-        theme="vs-dark"
-        options={{
-          readOnly,
-          minimap: { enabled: false },
-          fontSize: 14,
-          lineNumbers: 'on',
-          scrollBeyondLastLine: false,
-          automaticLayout: true,
-        }}
-      />
+      <div style={{ flex: 1, minHeight: 0, height: '100%', maxHeight: '100%', display: 'flex', flexDirection: 'column' }}>
+        <Editor
+          key={`${sessionId}-${challengeId}`}
+          height="100%"
+          language={language}
+          defaultValue={displayContent}
+          onChange={handleEditorChange}
+          onMount={handleEditorDidMount}
+          theme="vs-dark"
+          options={{
+            readOnly,
+            minimap: { enabled: false },
+            fontSize: 14,
+            lineNumbers: 'on',
+            scrollBeyondLastLine: false,
+            automaticLayout: true,
+          }}
+        />
+      </div>
     </div>
   )
 }

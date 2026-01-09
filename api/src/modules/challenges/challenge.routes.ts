@@ -5,6 +5,8 @@ import { authenticateToken, requireRole } from '../../middlewares/auth.middlewar
 const router = Router()
 // Avaliação automática do challenge
 router.get('/:id/evaluate', (req, res) => challengeController.evaluate(req, res))
+// Endpoint para exemplos de avaliação
+router.get('/:id/examples', (req, res) => challengeController.examples(req, res))
 
 // Public routes
 router.get('/', (req, res) => challengeController.list(req, res))

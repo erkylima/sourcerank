@@ -1,8 +1,23 @@
-import { Request, Response } from 'express'
-import challengeService from './challenge.service'
-import { Difficulty } from '../auth/auth.types'
 
-export class ChallengeController {
+  import { Request, Response } from 'express'
+  import challengeService from './challenge.service'
+  import { Difficulty } from '../auth/auth.types'
+
+  export class ChallengeController {
+    /**
+     * Retorna os exemplos de input/output de avaliação do challenge
+     */
+    async examples(req: Request, res: Response): Promise<void> {
+      try {
+        const { id } = req.params
+        const limit = Math.min(Number(req.query.limit) || 5, 20)
+        const examples = await challengeService.getExamples(id, limit)
+        res.json({ examples })
+      } catch (error: any) {
+        res.status(400).json({ error: error.message })
+      }
+    }
+
   /**
    * Endpoint para avaliar challenge automaticamente
    */
