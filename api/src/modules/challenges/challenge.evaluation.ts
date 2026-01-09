@@ -19,9 +19,30 @@ export async function evaluateChallenge(challengeId: number, sessionId: string):
     'SELECT content, language FROM session_challenge_content WHERE session_id = $1 AND challenge_id = $2 AND content_type = $3 LIMIT 1',
     [sessionId, challengeId, 'code']
   )
-  if (contentRes.rows.length === 0) throw new Error('Código do candidato não encontrado para esta sessão/desafio')
-  const candidateCode = contentRes.rows[0].content
-  const candidateLang = contentRes.rows[0].language
+  
+  let candidateCode: string
+  let candidateLang: string
+  
+  if (contentRes.rows.length === 0) {
+    console.warn(`[evaluateChallenge] ⚠️ Código do candidato não encontrado para session ${sessionId}/challenge ${challengeId}. Tentando fallback...`)
+    
+    // Fallback: tentar obter do histórico de conteúdo
+    const historyRes = await query(
+      'SELECT content, language FROM session_challenge_content_history WHERE session_id = $1 AND challenge_id = $2 AND content_type = $3 ORDER BY updated_at DESC LIMIT 1',
+      [sessionId, challengeId, 'code']
+    )
+    
+    if (historyRes.rows.length > 0) {
+      console.log('[evaluateChallenge] ✅ Código encontrado no histórico')
+      candidateCode = historyRes.rows[0].content
+      candidateLang = historyRes.rows[0].language
+    } else {
+      throw new Error('Código do candidato não encontrado para esta sessão/desafio. Salve o código antes de avaliar.')
+    }
+  } else {
+    candidateCode = contentRes.rows[0].content
+    candidateLang = contentRes.rows[0].language
+  }
 
   // Busca todos os casos de teste
   const evalRes = await query('SELECT input_example, expected_output FROM challenges_evaluations WHERE challenge_id = $1', [challengeId])

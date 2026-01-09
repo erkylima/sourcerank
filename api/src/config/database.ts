@@ -1,5 +1,6 @@
 import { Pool, PoolClient } from 'pg'
 import config from './env'
+import bcrypt from 'bcryptjs'
 
 const pool = new Pool({
   connectionString: config.database.url,
@@ -183,15 +184,42 @@ const seedChallenges = async () => {
     
     let systemUserId: string
     if (systemUserResult.rows.length === 0) {
+      // Hash password for system user
+      const systemPasswordHash = await bcrypt.hash('dev-jwt-secret', await bcrypt.genSalt(10))
       systemUserResult = await query(
         `INSERT INTO users (email, password_hash, role, name) 
          VALUES ($1, $2, $3, $4) 
          RETURNING id`,
-        ['system@sourcerank.com', 'system', 'interviewer', 'System']
+        ['system@sourcerank.com', systemPasswordHash, 'interviewer', 'System']
       )
       systemUserId = systemUserResult.rows[0].id
     } else {
       systemUserId = systemUserResult.rows[0].id
+    }
+
+    // Seed de usuários de teste
+    const testUsers = [
+      { email: 'interviewer@test.com', role: 'interviewer', name: 'Test Interviewer' },
+      { email: 'candidate@test.com', role: 'interviewee', name: 'Test Candidate' }
+    ]
+
+    for (const testUser of testUsers) {
+      const existingUser = await query(
+        `SELECT id FROM users WHERE email = $1`,
+        [testUser.email]
+      )
+      if (existingUser.rows.length === 0) {
+        // Hash password
+        const passwordHash = await bcrypt.hash('password123', await bcrypt.genSalt(10))
+        await query(
+          `INSERT INTO users (email, password_hash, role, name) 
+           VALUES ($1, $2, $3, $4)`,
+          [testUser.email, passwordHash, testUser.role, testUser.name]
+        )
+        console.log(`✅ Test user created: ${testUser.email} (${testUser.role})`)
+      } else {
+        console.log(`ℹ️ Test user already exists: ${testUser.email}`)
+      }
     }
 
     const challenges = [
@@ -303,15 +331,15 @@ const seedChallenges = async () => {
         case 'Two Sum':
           await query(
             `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
-            [challengeId, '[2, 7, 11, 15]\n9', '[0, 1]', 'Exemplo clássico']
+            [challengeId, '[2, 7, 11, 15, 9]', '[0, 1]', 'Exemplo clássico']
           );
           await query(
             `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
-            [challengeId, '[3, 2, 4]\n6', '[1, 2]', 'Outro exemplo']
+            [challengeId, '[3, 2, 4, 6]', '[1, 2]', 'Outro exemplo']
           );
           await query(
             `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
-            [challengeId, '[3, 3]\n6', '[0, 1]', 'Pares iguais']
+            [challengeId, '[3, 3, 6]', '[0, 1]', 'Pares iguais']
           );
           break;
         case 'Reverse String':
@@ -359,15 +387,15 @@ const seedChallenges = async () => {
         case 'Binary Search':
           await query(
             `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
-            [challengeId, '[-1,0,3,4,6,10]\n13', '-1', 'Busca sem sucesso']
+            [challengeId, '[-1, 0, 3, 4, 6, 10, 13]', '-1', 'Busca sem sucesso']
           );
           await query(
             `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
-            [challengeId, '[-1,0,3,4,6,10]\n4', '3', 'Busca com sucesso']
+            [challengeId, '[-1, 0, 3, 4, 6, 10, 4]', '3', 'Busca com sucesso']
           );
           await query(
             `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
-            [challengeId, '[1,2,3,4,5]\n1', '0', 'Busca no início']
+            [challengeId, '[1, 2, 3, 4, 5, 1]', '0', 'Busca no início']
           );
           break;
         case 'Longest Substring Without Repeating Characters':
@@ -401,29 +429,29 @@ const seedChallenges = async () => {
         case 'Median of Two Sorted Arrays':
           await query(
             `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
-            [challengeId, '[1,3]\n[2]', '2.0', 'Mediana de duas listas']
+            [challengeId, '[[1, 3], [2]]', '2.0', 'Mediana de duas listas']
           );
           await query(
             `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
-            [challengeId, '[1,2]\n[3,4]', '2.5', 'Mediana par']
+            [challengeId, '[[1, 2], [3, 4]]', '2.5', 'Mediana par']
           );
           await query(
             `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
-            [challengeId, '[0,0]\n[0,0]', '0.0', 'Zeros']
+            [challengeId, '[[0, 0], [0, 0]]', '0.0', 'Zeros']
           );
           break;
         case 'Regular Expression Matching':
           await query(
             `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
-            [challengeId, 'aa\na', 'False', 'Regex simples']
+            [challengeId, '["aa", "a"]', 'false', 'Regex simples']
           );
           await query(
             `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
-            [challengeId, 'aa\naa', 'True', 'Regex igual']
+            [challengeId, '["aa", "aa"]', 'true', 'Regex igual']
           );
           await query(
             `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
-            [challengeId, 'ab\n.*', 'True', 'Regex qualquer']
+            [challengeId, '["ab", ".*"]', 'true', 'Regex qualquer']
           );
           break;
       }
@@ -442,76 +470,204 @@ const seedChallenges = async () => {
       return
     }
     const starterTemplates: { [key: string]: string } = {
-  python: `input_example = __INPUT_EXAMPLE__
+  python: `import json
+import sys
+
 def solution(args):
-    return ""
+    # TODO: Implement your solution here
+    # args can be a list, dict, string, int, etc.
+    return ["result"]
 
 if __name__ == "__main__":
-    output = solution(input_example)
-    print(output)
+    args = json.loads(sys.stdin.read())
+    result = solution(args)
+    print(json.dumps(result))
 `,
-  javascript: `const input_example = __INPUT_EXAMPLE__;
-function solution(args) {
-  return "";
-}
-
-console.log(solution(input_example));
-`,
-  typescript: `const input_example: any = __INPUT_EXAMPLE__;
-function solution(args: any): any {
-  return "";
-}
-
-console.log(solution(input_example));
-`,
-  java: `public class Solution {
-  public static Object solution(Object args) {
-    return "";
+  javascript: `const readline = require('readline');
+const rl = readline.createInterface({ input: process.stdin });
+let input_data = '';
+rl.on('line', (line) => {
+  input_data += line + '\\n';
+});
+rl.on('close', () => {
+  function solution(args) {
+    // TODO: Implement your solution here
+    // args can be a list, object, string, number, etc.
+    return ["result"];
   }
-  public static void main(String[] args) {
-    Object input_example = __INPUT_EXAMPLE__;
-    Object output = solution(input_example);
-    System.out.println(output);
+  const args = JSON.parse(input_data.trim());
+  const result = solution(args);
+  console.log(JSON.stringify(result));
+});
+`,
+  typescript: `import * as readline from 'readline';
+const rl = readline.createInterface({ input: process.stdin });
+let input_data = '';
+rl.on('line', (line) => {
+  input_data += line + '\\n';
+});
+rl.on('close', () => {
+  function solution(args: any): string[] {
+    // TODO: Implement your solution here
+    // args can be a list, object, string, number, etc.
+    return ["result"];
+  }
+  const args = JSON.parse(input_data.trim());
+  const result = solution(args);
+  console.log(JSON.stringify(result));
+});
+`,
+  java: `import java.util.*;
+import org.json.*;
+
+public class Solution {
+  public static List<String> solution(Object args) {
+    // TODO: Implement your solution here
+    // args can be JSONArray, JSONObject, String, Integer, etc.
+    // Validate type before using:
+    // if (args instanceof JSONArray) { ... }
+    // if (args instanceof JSONObject) { ... }
+    // if (args instanceof String) { ... }
+    // if (args instanceof Integer || args instanceof Double) { ... }
+    return Arrays.asList("result");
+  }
+  
+  public static void main(String[] args) throws Exception {
+    Scanner scanner = new Scanner(System.in);
+    StringBuilder inputBuilder = new StringBuilder();
+    while (scanner.hasNextLine()) {
+      inputBuilder.append(scanner.nextLine()).append("\\n");
+    }
+    scanner.close();
+    
+    String input_data = inputBuilder.toString().trim();
+    Object parsed;
+    try {
+      parsed = new JSONTokener(input_data).nextValue();
+    } catch (JSONException e) {
+      parsed = input_data; // Fallback to string
+    }
+    
+    List<String> result = solution(parsed);
+    System.out.println(new JSONArray(result).toString());
   }
 }
 `,
-  cpp: `#include <bits/stdc++.h>
+  cpp: `#include <iostream>
+#include <string>
+#include <vector>
+#include <nlohmann/json.hpp>
 using namespace std;
+using json = nlohmann::json;
 
-auto input_example = __INPUT_EXAMPLE__;
-
-auto solution(auto args) {
-  return string("");
+vector<string> solution(const json& args) {
+  // TODO: Implement your solution here
+  // args can be array, object, string, number, etc.
+  // Validate type before using:
+  // if (args.is_array()) { ... }
+  // if (args.is_object()) { ... }
+  // if (args.is_string()) { ... }
+  // if (args.is_number()) { ... }
+  return {"result"};
 }
 
 int main() {
-  auto output = solution(input_example);
-  cout << output << endl;
+  string input_data, line;
+  while (getline(cin, line)) {
+    input_data += line + "\\n";
+  }
+  
+  try {
+    auto args = json::parse(input_data);
+    auto result = solution(args);
+    json result_json = result;
+    cout << result_json.dump() << endl;
+  } catch (const exception& e) {
+    cerr << "Error: " << e.what() << endl;
+    return 1;
+  }
   return 0;
 }
 `,
-  go: `import "fmt"
+  go: `package main
+import (
+  "bufio"
+  "encoding/json"
+  "fmt"
+  "os"
+  "strings"
+)
 
-var input_example = __INPUT_EXAMPLE__
-func solution(args interface{}) interface{} {
-  return ""
+func solution(args interface{}) []string {
+  // TODO: Implement your solution here
+  // args can be []interface{}, map[string]interface{}, string, float64, etc.
+  // Type assert before using:
+  // if arr, ok := args.([]interface{}); ok { ... }
+  // if obj, ok := args.(map[string]interface{}); ok { ... }
+  // if str, ok := args.(string); ok { ... }
+  // if num, ok := args.(float64); ok { ... }
+  return []string{"result"}
 }
 
 func main() {
-  output := solution(input_example)
-  fmt.Println(output)
+  reader := bufio.NewReader(os.Stdin)
+  var input_data strings.Builder
+  for {
+    line, err := reader.ReadString('\\n')
+    if err != nil {
+      break
+    }
+    input_data.WriteString(line)
+  }
+  
+  var args interface{}
+  if err := json.Unmarshal([]byte(input_data.String()), &args); err != nil {
+    fmt.Fprintf(os.Stderr, "Error: %v\\n", err)
+    return
+  }
+  
+  result := solution(args)
+  resultJSON, _ := json.Marshal(result)
+  fmt.Println(string(resultJSON))
 }
 `,
   csharp: `using System;
+using System.Collections.Generic;
+using System.Text;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 public class Solution {
-  public static object input_example = __INPUT_EXAMPLE__;
-  public static object Solution(object args) {
-    return "";
+  public static List<string> Solution(dynamic args) {
+    // TODO: Implement your solution here
+    // args can be JArray, JObject, string, int, double, etc.
+    // Check type before using:
+    // if (args is JArray) { ... }
+    // if (args is JObject) { ... }
+    // if (args is string) { ... }
+    // if (args is long || args is double) { ... }
+    return new List<string> { "result" };
   }
+  
   public static void Main() {
-    var output = Solution(input_example);
-    Console.WriteLine(output);
+    StringBuilder inputBuilder = new StringBuilder();
+    string line;
+    while ((line = Console.ReadLine()) != null) {
+      inputBuilder.AppendLine(line);
+    }
+    
+    string input_data = inputBuilder.ToString().Trim();
+    dynamic args = null;
+    try {
+      args = JsonConvert.DeserializeObject(input_data);
+    } catch (Exception e) {
+      Console.Error.WriteLine($"Error: {e.Message}");
+      return;
+    }
+    
+    List<string> result = Solution(args);
+    string resultJson = JsonConvert.SerializeObject(result);
+    Console.WriteLine(resultJson);
   }
 }
 `
