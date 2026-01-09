@@ -9,75 +9,47 @@ users
   ├─ id (UUID) [PK]
   ├─ email (VARCHAR) [UNIQUE]
   ├─ password_hash (VARCHAR)
-  ├─ role (interviewer|interviewee)
-  ├─ name
-  ├─ created_at
-  └─ updated_at
-     ↓
-     ├─→ challenges (created_by)
-     ├─→ sessions (interviewer_id)
-     └─→ sessions (interviewee_id)
+  ### starter_codes
 
-challenges
-  ├─ id (SERIAL) [PK]
-  ├─ title
-  ├─ description
-  ├─ difficulty (basic|intermediate|advanced)
-  ├─ input_example
-  ├─ output_example
-  ├─ created_by (FK users)
-  ├─ created_at
-  └─ updated_at
-     ↓
-     ├─→ sessions (current_challenge_id)
-     ├─→ starter_codes
-     ├─→ session_challenge_content
-     └─→ session_challenge_content_history
+  Templates de código inicial genéricos para cada linguagem suportada.
 
-sessions
-  ├─ id (UUID) [PK]
-  ├─ interviewer_id (FK users)
-  ├─ interviewee_id (FK users)
-  ├─ current_challenge_id (FK challenges)
-  ├─ preferred_language
-  ├─ status (pending|active|completed|cancelled|expired)
-  ├─ session_code
-  ├─ interviewee_accepted
-  ├─ interviewee_requested_at
-  ├─ expires_at
-  ├─ started_at
-  ├─ ended_at
-  ├─ created_at
-  └─ updated_at
-     ↓
-     ├─→ session_challenge_content
-     ├─→ session_challenge_content_history
-     ├─→ executions
-     └─→ session_language_history
+  ```sql
+  CREATE TABLE starter_codes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    language VARCHAR(50) NOT NULL UNIQUE,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  );
+  ```
 
-session_challenge_content
-  ├─ id (UUID) [PK]
-  ├─ session_id (FK sessions)
-  ├─ challenge_id (FK challenges)
-  ├─ content_type (code|notes)
-  ├─ language (python|javascript|java|go|typescript|csharp)
-  ├─ content (TEXT)
-  ├─ started (BOOLEAN)
-  ├─ created_at
-  ├─ updated_at
-  └─ CONSTRAINT UNIQUE(session_id, challenge_id, content_type)
+  **Campos:**
+  - `id`: UUID único
+  - `language`: Linguagem
+  - `content`: Template de código inicial
+  - `created_at`, `updated_at`: Timestamps
 
-session_challenge_content_history
+  **Exemplo de starter genérico:**
+  ```python
+  # Python
   ├─ id (UUID) [PK]
   ├─ session_id (FK sessions)
   ├─ challenge_id (FK challenges)
   ├─ content_type (code|notes)
   ├─ language
   ├─ content (TEXT)
+  ```
+  ```javascript
+  // JavaScript
+  function solution(args) {
   └─ updated_at
 
 executions
   ├─ id (UUID) [PK]
+  ```
+  ```java
+  // Java
+  public class Solution {
   ├─ session_id (FK sessions)
   ├─ language
   ├─ code
@@ -87,40 +59,23 @@ executions
   ├─ execution_time_ms
   ├─ created_at
   └─ updated_at
+  ```
+  ```go
+  // Go
+  func solution(args interface{}) interface{} {
      ↓
      └─→ logs
 
 logs
   ├─ id (UUID) [PK]
-  ├─ execution_id (FK executions)
-  ├─ message
-  ├─ level (info|error|warning)
-  └─ created_at
-
-starter_codes
-  ├─ id (UUID) [PK]
   ├─ challenge_id (FK challenges)
   ├─ language
+  ```
+  ```typescript
+  // TypeScript
+  function solution(args: any): any {
   ├─ content (TEXT)
-  ├─ created_at
-  ├─ updated_at
-  └─ CONSTRAINT UNIQUE(challenge_id, language)
-
-session_language_history
-  ├─ id (UUID) [PK]
-  ├─ session_id (FK sessions)
-  ├─ challenge_id (FK challenges)
-  ├─ content_type (code|notes)
-  ├─ language
-  ├─ source
-  └─ created_at
-```
-
----
-
-## 📋 Descrição Detalhada das Tabelas
-
-### users
+  ### users
 
 Armazena dados de autenticação e perfil dos usuários.
 
@@ -131,6 +86,10 @@ CREATE TABLE users (
   password_hash VARCHAR(255) NOT NULL,
   role VARCHAR(50) NOT NULL CHECK (role IN ('interviewer', 'interviewee')),
   name VARCHAR(255),
+  ```
+  ```csharp
+  // C#
+  public class Solution {
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -140,6 +99,7 @@ CREATE INDEX idx_users_email ON users(email);
 
 **Campos:**
 - `id`: UUID único gerado automaticamente
+  ```
 - `email`: Email único do usuário (login)
 - `password_hash`: Senha hasheada com bcrypt
 - `role`: Entrevistador ou candidato
@@ -159,8 +119,8 @@ CREATE TABLE challenges (
   title VARCHAR(255) NOT NULL,
   description TEXT NOT NULL,
   difficulty VARCHAR(50) NOT NULL CHECK (difficulty IN ('basic', 'intermediate', 'advanced')),
-  input_example TEXT NOT NULL,
-  output_example TEXT NOT NULL,
+  code_example TEXT NOT NULL,
+  lang_example VARCHAR(50) NOT NULL DEFAULT 'python',
   created_by UUID NOT NULL REFERENCES users(id),
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
@@ -174,10 +134,37 @@ CREATE INDEX idx_challenges_created_by ON challenges(created_by);
 - `title`: Nome do desafio (ex: "Two Sum")
 - `description`: Descrição completa do problema
 - `difficulty`: Nível de dificuldade
-- `input_example`: Exemplo de entrada
-- `output_example`: Exemplo de saída esperada
+- `code_example`: Código de referência funcional (obrigatório)
+- `lang_example`: Linguagem do code_example (ex: python, javascript, java...)
 - `created_by`: Referência para usuário criador
 - `created_at`, `updated_at`: Timestamps
+
+---
+
+### challenges_evaluations
+
+Casos de teste e avaliações para cada desafio.
+
+```sql
+CREATE TABLE challenges_evaluations (
+  id SERIAL PRIMARY KEY,
+  challenge_id INTEGER NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,
+  input_example TEXT NOT NULL,
+  expected_output TEXT NOT NULL,
+  description TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_challenge_eval_challenge_id ON challenges_evaluations(challenge_id);
+```
+
+**Campos:**
+- `id`: ID sequencial auto-incremento
+- `challenge_id`: FK para challenges
+- `input_example`: Exemplo de entrada
+- `expected_output`: Saída esperada (gerada via code_example)
+- `description`: Descrição do caso de teste
+- `created_at`: Timestamp
 
 **Desafios Pré-configurados:**
 1. FizzBuzz

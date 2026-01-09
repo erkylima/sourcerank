@@ -4,7 +4,7 @@ import { Execution, ExecutionLog } from '../auth/auth.types'
 import axios from 'axios'
 import config from '../../config/env'
 
-type ExecutionStatus = 'pending' | 'running' | 'completed' | 'failed' | 'timeout'
+type ExecutionStatus = 'pending' | 'running' | 'completed' | 'failed' | 'timeout' | 'error'
 
 export class ExecutionService {
   async submitExecution(
@@ -13,6 +13,7 @@ export class ExecutionService {
     language: string,
     code: string,
     userId: string,
+    input?: string // novo parâmetro opcional
   ): Promise<Execution> {
     const id = uuidv4()
 
@@ -27,6 +28,15 @@ export class ExecutionService {
       )
     }
 
+    // Se input não vier, busca o primeiro input_example do challenge
+    let inputToSend: string | undefined = input
+    if (inputToSend === undefined || inputToSend === null || inputToSend === '') {
+      const evalRes = await query('SELECT input_example FROM challenges_evaluations WHERE challenge_id = $1 LIMIT 1', [challengeId])
+      if (evalRes.rows.length > 0) {
+        inputToSend = evalRes.rows[0].input_example
+      }
+    }
+
     // Create execution record
     const result = await query(
       `INSERT INTO executions (id, session_id, language, code, status)
@@ -36,14 +46,20 @@ export class ExecutionService {
 
     const execution = result.rows[0]
 
+    // Monta payload para runner
+    const payload: any = {
+      executionId: execution.id,
+      language,
+      code,
+      timeout: 30000, // 30 seconds
+    }
+    if (inputToSend !== undefined && inputToSend !== null && inputToSend !== '') {
+      payload.input = inputToSend
+    }
+
     // Send to runner
     try {
-      await axios.post(`${config.runner.url}/execute`, {
-        executionId: execution.id,
-        language,
-        code,
-        timeout: 30000, // 30 seconds
-      })
+      await axios.post(`${config.runner.url}/execute`, payload)
     } catch (error) {
       // Update status to failed
       await query('UPDATE executions SET status = $1 WHERE id = $2', ['failed', id])
@@ -76,6 +92,7 @@ export class ExecutionService {
     _exitCode?: number,
     executionTime?: number,
   ): Promise<Execution> {
+    console.log(`[updateExecutionStatus] id=${id} status=${status} stdout=${stdout} stderr=${stderr} executionTime=${executionTime}`)
     const result = await query(
       `UPDATE executions SET status = $1, output = $2, error = $3, execution_time_ms = $4, updated_at = NOW()
        WHERE id = $5 RETURNING *`,
@@ -83,6 +100,7 @@ export class ExecutionService {
     )
 
     if (result.rows.length === 0) {
+      console.error(`[updateExecutionStatus] Execution not found for id=${id}`)
       throw new Error('Execution not found')
     }
 

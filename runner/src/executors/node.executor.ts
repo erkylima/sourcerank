@@ -14,7 +14,7 @@ export class NodeExecutor extends BaseExecutor {
     return `node "${filePath}"`
   }
 
-  async execute(code: string, tempDir: string, timeout: number, executionId?: string, isTypeScript: boolean = false): Promise<ExecutionResult> {
+  async execute(code: string, tempDir: string, timeout: number, executionId?: string, isTypeScript: boolean = false, input?: string): Promise<ExecutionResult> {
     const filename = isTypeScript ? `code.ts` : `code.js`
     const filePath = path.join(tempDir, filename)
 
@@ -48,6 +48,12 @@ export class NodeExecutor extends BaseExecutor {
           NODE_NO_WARNINGS: '1',
         },
       })
+
+      // Se houver input, escreve no stdin
+      if (input) {
+        child.stdin.write(input)
+        child.stdin.end()
+      }
 
       const timeoutId = setTimeout(() => {
         timedOut = true

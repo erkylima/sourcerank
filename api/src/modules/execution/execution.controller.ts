@@ -4,7 +4,7 @@ import executionService from './execution.service'
 export class ExecutionController {
   async submit(req: Request, res: Response): Promise<void> {
     try {
-      const { sessionId, challengeId, language, code } = req.body
+      const { sessionId, challengeId, language, code, input } = req.body
       const userId = (req as any).userId || 'anonymous' // From auth middleware, fallback to anonymous
 
       if (!sessionId || !challengeId || !language || !code) {
@@ -24,6 +24,7 @@ export class ExecutionController {
         language,
         code,
         userId,
+        input // novo parâmetro opcional
       )
 
       // Broadcast execution started event to session room

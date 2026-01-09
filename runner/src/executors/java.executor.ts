@@ -14,7 +14,7 @@ export class JavaExecutor extends BaseExecutor {
     return `javac "${filePath}" && java -cp . Code`
   }
 
-  async execute(code: string, tempDir: string, timeout: number, executionId?: string): Promise<ExecutionResult> {
+  async execute(code: string, tempDir: string, timeout: number, executionId?: string, input?: string): Promise<ExecutionResult> {
     const filename = `Solution.java`
     const filePath = path.join(tempDir, filename)
 
@@ -85,6 +85,12 @@ ${code}
         cwd: tempDir,
         shell: true,
       })
+
+      // Se houver input, escreve no stdin
+      if (input) {
+        child.stdin.write(input)
+        child.stdin.end()
+      }
 
       const timeoutId = setTimeout(() => {
         timedOut = true

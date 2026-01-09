@@ -14,7 +14,7 @@ export class CSharpExecutor extends BaseExecutor {
     return `mcs "${filePath}" && mono code.exe`
   }
 
-  async execute(code: string, tempDir: string, timeout: number, executionId?: string): Promise<ExecutionResult> {
+  async execute(code: string, tempDir: string, timeout: number, executionId?: string, input?: string): Promise<ExecutionResult> {
     const filename = `code.cs`
     const filePath = path.join(tempDir, filename)
     const exePath = path.join(tempDir, `code.exe`)
@@ -114,6 +114,12 @@ ${code.split('\n').map(line => `    ${line}`).join('\n')}
         cwd: tempDir,
         shell: true,
       })
+
+      // Se houver input, escreve no stdin
+      if (input) {
+        child.stdin.write(input)
+        child.stdin.end()
+      }
 
       const timeoutId = setTimeout(() => {
         timedOut = true

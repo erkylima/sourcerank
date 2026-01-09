@@ -14,7 +14,7 @@ export class PythonExecutor extends BaseExecutor {
     return `python3 -u "${filePath}"`
   }
 
-  async execute(code: string, tempDir: string, timeout: number, executionId?: string): Promise<ExecutionResult> {
+  async execute(code: string, tempDir: string, timeout: number, executionId?: string, input?: string): Promise<ExecutionResult> {
     const filename = `code.py`
     const filePath = path.join(tempDir, filename)
 
@@ -31,6 +31,16 @@ export class PythonExecutor extends BaseExecutor {
         cwd: tempDir,
         timeout,
       })
+
+      // Se houver input, escreve no stdin
+      if (input && input.trim() !== '') {
+        child.stdin.write(input)
+        child.stdin.end()
+      } else {
+        // Se input for vazio, envie 'null' para evitar travamento
+        child.stdin.write('null')
+        child.stdin.end()
+      }
 
       const timeoutId = setTimeout(() => {
         timedOut = true

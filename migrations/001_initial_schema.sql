@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS challenges (
   difficulty VARCHAR(50) NOT NULL CHECK (difficulty IN ('basic', 'intermediate', 'advanced')),
   input_example TEXT NOT NULL,
   output_example TEXT NOT NULL,
+  code_example TEXT NOT NULL,
+  lang_example VARCHAR(50) NOT NULL DEFAULT 'python',
   created_by UUID NOT NULL REFERENCES users(id),
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
@@ -97,26 +99,15 @@ CREATE TABLE IF NOT EXISTS session_challenge_content_history (
 );
 
 -- Legacy table (kept for backward compatibility)
-CREATE TABLE IF NOT EXISTS session_language_history (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  session_id UUID NOT NULL REFERENCES sessions(id),
-  challenge_id INTEGER NOT NULL REFERENCES challenges(id),
-  content_type VARCHAR(50) NOT NULL DEFAULT 'code',
-  language VARCHAR(50) NOT NULL,
-  source VARCHAR(50),
-  created_at TIMESTAMP DEFAULT NOW()
-);
 
 -- Starter code templates
 CREATE TABLE IF NOT EXISTS starter_codes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  challenge_id INTEGER NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,
   language VARCHAR(50) NOT NULL,
   content TEXT NOT NULL,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW(),
-  CONSTRAINT unique_starter_code UNIQUE (challenge_id, language)
-);
+  CONSTRAINT unique_starter_code UNIQUE (language);
 
 -- ============================================================================
 -- INDEXES
@@ -144,8 +135,6 @@ CREATE INDEX IF NOT EXISTS idx_content_history_lookup ON session_challenge_conte
 CREATE INDEX IF NOT EXISTS idx_content_history_updated ON session_challenge_content_history(updated_at DESC);
 
 -- Language history indexes
-CREATE INDEX IF NOT EXISTS idx_language_history_session ON session_language_history(session_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_language_history_challenge ON session_language_history(challenge_id, created_at);
 
 -- Starter codes indexes
 CREATE INDEX IF NOT EXISTS idx_starter_codes_challenge ON starter_codes(challenge_id);
@@ -172,20 +161,20 @@ WITH system_user AS (
 )
 
 -- Insert challenges (if not already present)
-INSERT INTO challenges (title, description, difficulty, input_example, output_example, created_by)
+INSERT INTO challenges (title, description, difficulty, input_example, output_example, code_example, lang_example, created_by)
 SELECT * FROM (
   VALUES
-    ('FizzBuzz', 'Write a program that prints numbers from 1 to 100. For multiples of 3, print "Fizz" instead of the number. For multiples of 5, print "Buzz". For multiples of both, print "FizzBuzz".', 'basic', 'n/a (no input)', '1\n2\nFizz\n4\nBuzz\n...\n15 (FizzBuzz)\n...', (SELECT id FROM system_user)),
-    ('Two Sum', 'Given an array of integers nums and an integer target, return the indices of the two numbers that add up to the target. You may assume each input has exactly one solution, and you cannot use the same element twice.', 'basic', 'nums = [2, 7, 11, 15], target = 9', '[0, 1]', (SELECT id FROM system_user)),
-    ('Reverse String', 'Write a function that reverses a string. The input string is given as an array of characters s. You must do this by modifying the input array in-place with O(1) extra memory.', 'basic', 's = ["h","e","l","l","o"]', '["o","l","l","e","h"]', (SELECT id FROM system_user)),
-    ('Palindrome Number', 'Given an integer x, return true if x is a palindrome, and false otherwise. An integer is a palindrome when it reads the same backward as forward.', 'basic', 'x = 121', 'true', (SELECT id FROM system_user)),
-    ('Valid Parentheses', 'Given a string s containing just the characters "(", ")", "{", "}", "[" and "]", determine if the input string is valid. An input string is valid if: (1) Open brackets must be closed by the same type of brackets, (2) Open brackets must be closed in the correct order.', 'intermediate', 's = "()[]{}"', 'true', (SELECT id FROM system_user)),
-    ('Binary Search', 'Given an array of integers nums which is sorted in ascending order, and an integer target, write a function to search target in nums. If target exists, then return its index. Otherwise, return -1. You must write an algorithm with O(log n) runtime complexity.', 'intermediate', 'nums = [-1,0,3,4,6,10], target = 13', '-1', (SELECT id FROM system_user)),
-    ('Longest Substring Without Repeating Characters', 'Given a string s, find the length of the longest substring without repeating characters.', 'intermediate', 's = "au"', '2', (SELECT id FROM system_user)),
-    ('Merge K Sorted Lists', 'You are given an array of k linked-lists lists, each linked-list is sorted in ascending order. Merge all the linked-lists into one sorted linked-list and return it.', 'advanced', 'lists = [[1,4,5],[1,3,4],[2,6]]', '[1,1,2,1,3,4,4,5,6]', (SELECT id FROM system_user)),
-    ('Median of Two Sorted Arrays', 'Given two sorted arrays nums1 and nums2 of size m and n respectively, return the median of the two sorted arrays. The overall run time complexity should be O(log (m+n)).', 'advanced', 'nums1 = [1,3], nums2 = [2]', '2.0', (SELECT id FROM system_user)),
-    ('Regular Expression Matching', 'Given an input string s and a pattern p, implement regular expression matching with support for "." and "*" where: "." Matches any single character, "*" Matches zero or more of the preceding element.', 'advanced', 's = "aa", p = "a"', 'false', (SELECT id FROM system_user))
-) AS t(title, description, difficulty, input_example, output_example, created_by)
+    ('FizzBuzz', 'Write a program that prints numbers from 1 to 100. For multiples of 3, print "Fizz" instead of the number. For multiples of 5, print "Buzz". For multiples of both, print "FizzBuzz".', 'basic', 'n/a (no input)', '1\n2\nFizz\n4\nBuzz\n...\n15 (FizzBuzz)\n...', 'for i in range(1, 101):\n    if i % 15 == 0:\n        print(\'FizzBuzz\')\n    elif i % 3 == 0:\n        print(\'Fizz\')\n    elif i % 5 == 0:\n        print(\'Buzz\')\n    else:\n        print(i)', 'python', (SELECT id FROM system_user)),
+    ('Two Sum', 'Given an array of integers nums and an integer target, return the indices of the two numbers that add up to the target. You may assume each input has exactly one solution, and you cannot use the same element twice.', 'basic', 'nums = [2, 7, 11, 15], target = 9', '[0, 1]', 'def two_sum(nums, target):\n    lookup = {}\n    for i, num in enumerate(nums):\n        if target - num in lookup:\n            return [lookup[target - num], i]\n        lookup[num] = i\nnums = [2, 7, 11, 15]\ntarget = 9\nprint(two_sum(nums, target))', 'python', (SELECT id FROM system_user)),
+    ('Reverse String', 'Write a function that reverses a string. The input string is given as an array of characters s. You must do this by modifying the input array in-place with O(1) extra memory.', 'basic', 's = ["h","e","l","l","o"]', '["o","l","l","e","h"]', 's = ["h","e","l","l","o"]\ns.reverse()\nprint(s)', 'python', (SELECT id FROM system_user)),
+    ('Palindrome Number', 'Given an integer x, return true if x is a palindrome, and false otherwise. An integer is a palindrome when it reads the same backward as forward.', 'basic', 'x = 121', 'true', 'x = 121\nprint(str(x) == str(x)[::-1])', 'python', (SELECT id FROM system_user)),
+    ('Valid Parentheses', 'Given a string s containing just the characters "(", ")", "{", "}", "[" and "]", determine if the input string is valid. An input string is valid if: (1) Open brackets must be closed by the same type of brackets, (2) Open brackets must be closed in the correct order.', 'intermediate', 's = "()[]{}"', 'true', 's = "()[]{}"\nstack = []\npairs = {\')\': \'(\', \'\}\': \'{\', \'\]\': \'[\'}\nfor c in s:\n    if c in pairs.values():\n        stack.append(c)\n    elif c in pairs:\n        if not stack or stack.pop() != pairs[c]:\n            print(False)\n            break\nelse:\n    print(not stack)', 'python', (SELECT id FROM system_user)),
+    ('Binary Search', 'Given an array of integers nums which is sorted in ascending order, and an integer target, write a function to search target in nums. If target exists, then return its index. Otherwise, return -1. You must write an algorithm with O(log n) runtime complexity.', 'intermediate', 'nums = [-1,0,3,4,6,10], target = 13', '-1', 'def binary_search(nums, target):\n    l, r = 0, len(nums) - 1\n    while l <= r:\n        m = (l + r) // 2\n        if nums[m] == target:\n            return m\n        elif nums[m] < target:\n            l = m + 1\n        else:\n            r = m - 1\n    return -1\nnums = [-1,0,3,4,6,10]\ntarget = 13\nprint(binary_search(nums, target))', 'python', (SELECT id FROM system_user)),
+    ('Longest Substring Without Repeating Characters', 'Given a string s, find the length of the longest substring without repeating characters.', 'intermediate', 's = "au"', '2', 's = "au"\nseen = {}\nmax_len = start = 0\nfor i, c in enumerate(s):\n    if c in seen and seen[c] >= start:\n        start = seen[c] + 1\n    seen[c] = i\n    max_len = max(max_len, i - start + 1)\nprint(max_len)', 'python', (SELECT id FROM system_user)),
+    ('Merge K Sorted Lists', 'You are given an array of k linked-lists lists, each linked-list is sorted in ascending order. Merge all the linked-lists into one sorted linked-list and return it.', 'advanced', 'lists = [[1,4,5],[1,3,4],[2,6]]', '[1,1,2,1,3,4,4,5,6]', 'import heapq\nlists = [[1,4,5],[1,3,4],[2,6]]\nmerged = list(heapq.merge(*lists))\nprint(merged)', 'python', (SELECT id FROM system_user)),
+    ('Median of Two Sorted Arrays', 'Given two sorted arrays nums1 and nums2 of size m and n respectively, return the median of the two sorted arrays. The overall run time complexity should be O(log (m+n)).', 'advanced', 'nums1 = [1,3], nums2 = [2]', '2.0', 'nums1 = [1,3]\nnums2 = [2]\nnums = sorted(nums1 + nums2)\nn = len(nums)\nif n % 2 == 1:\n    print(float(nums[n//2]))\nelse:\n    print((nums[n//2-1] + nums[n//2]) / 2)', 'python', (SELECT id FROM system_user)),
+    ('Regular Expression Matching', 'Given an input string s and a pattern p, implement regular expression matching with support for "." and "*" where: "." Matches any single character, "*" Matches zero or more of the preceding element.', 'advanced', 's = "aa", p = "a"', 'false', 'import re\ns = "aa"\np = "a"\nprint(bool(re.fullmatch(p, s)))', 'python', (SELECT id FROM system_user))
+) AS t(title, description, difficulty, input_example, output_example, code_example, lang_example, created_by)
 WHERE NOT EXISTS (SELECT 1 FROM challenges WHERE title = t.title)
 ON CONFLICT DO NOTHING;
 

@@ -32,7 +32,7 @@ app.get('/health', (_req: Request, res: Response) => {
 
 // Execute endpoint
 app.post('/execute', async (req: Request, res: Response): Promise<void> => {
-  const { executionId, language, code, timeout = 30000 } = req.body
+  const { executionId, language, code, timeout = 30000, input } = req.body
 
   if (!executionId || !language || !code) {
     res.status(400).json({ error: 'Missing required fields: executionId, language, code' })
@@ -45,7 +45,7 @@ app.post('/execute', async (req: Request, res: Response): Promise<void> => {
   }
 
   // Execute asynchronously (no initial log)
-  executeCode(executionId, language, code, timeout).catch((error) => {
+  executeCode(executionId, language, code, timeout, input).catch((error) => {
     console.error(`Execution failed for ${executionId}:`, error)
   })
 
@@ -58,7 +58,7 @@ app.post('/execute', async (req: Request, res: Response): Promise<void> => {
 })
 
 // Main execution function
-async function executeCode(executionId: string, language: string, code: string, timeout: number) {
+async function executeCode(executionId: string, language: string, code: string, timeout: number, input?: string) {
   const executor = executors[language as keyof typeof executors]
   const tempDir = path.join('/tmp/executions', executionId)
 
@@ -74,9 +74,9 @@ async function executeCode(executionId: string, language: string, code: string, 
     
     // Special handling for TypeScript - pass isTypeScript flag to NodeExecutor
     if (language === 'typescript' && executor instanceof NodeExecutor) {
-      result = await executor.execute(code, tempDir, timeout, executionId, true)
+      result = await executor.execute(code, tempDir, timeout, executionId, true, input)
     } else {
-      result = await executor.execute(code, tempDir, timeout, executionId)
+      result = await executor.execute(code, tempDir, timeout, executionId, input)
     }
     
     const executionTime = Date.now() - startTime

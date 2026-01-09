@@ -1,19 +1,27 @@
 import { query } from '../../config/database'
 import { Challenge, Difficulty } from '../auth/auth.types'
+import { evaluateChallenge, ChallengeEvaluationResult } from './challenge.evaluation'
 
 export class ChallengeService {
+  /**
+   * Avalia o challenge executando o code_example para cada input_example e comparando com expected_output.
+   */
+  async evaluate(id: string, sessionId: string): Promise<ChallengeEvaluationResult[]> {
+    return await evaluateChallenge(Number(id), sessionId)
+  }
+
   async createChallenge(
     title: string,
     description: string,
     difficulty: Difficulty,
-    examples: any,
+    codeExample: string,
+    langExample: string,
     createdBy: string,
   ): Promise<Challenge> {
-    const inputExample = typeof examples === 'string' ? examples : JSON.stringify(examples)
     const result = await query(
-      `INSERT INTO challenges (title, description, difficulty, input_example, output_example, created_by)
+      `INSERT INTO challenges (title, description, difficulty, code_example, lang_example, created_by)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [title, description, difficulty, inputExample, inputExample, createdBy],
+      [title, description, difficulty, codeExample, langExample, createdBy],
     )
     return result.rows[0]
   }
@@ -43,7 +51,8 @@ export class ChallengeService {
     title?: string,
     description?: string,
     difficulty?: Difficulty,
-    examples?: string,
+    codeExample?: string,
+    langExample?: string,
   ): Promise<Challenge> {
     const updates: string[] = []
     const values: any[] = []
@@ -61,12 +70,13 @@ export class ChallengeService {
       updates.push(`difficulty = $${paramCount++}`)
       values.push(difficulty)
     }
-    if (examples !== undefined) {
-      const inputExample = typeof examples === 'string' ? examples : JSON.stringify(examples)
-      updates.push(`input_example = $${paramCount++}`)
-      values.push(inputExample)
-      updates.push(`output_example = $${paramCount++}`)
-      values.push(inputExample)
+    if (codeExample !== undefined) {
+      updates.push(`code_example = $${paramCount++}`)
+      values.push(codeExample)
+    }
+    if (langExample !== undefined) {
+      updates.push(`lang_example = $${paramCount++}`)
+      values.push(langExample)
     }
 
     if (updates.length === 0) {

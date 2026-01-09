@@ -36,12 +36,24 @@ export const initializeDatabase = async () => {
         title VARCHAR(255) NOT NULL,
         description TEXT NOT NULL,
         difficulty VARCHAR(50) NOT NULL CHECK (difficulty IN ('basic', 'intermediate', 'advanced')),
-        input_example TEXT NOT NULL,
-        output_example TEXT NOT NULL,
+        code_example TEXT NOT NULL,
+        lang_example VARCHAR(50) NOT NULL DEFAULT 'python',
         created_by UUID NOT NULL REFERENCES users(id),
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       );
+
+      CREATE TABLE IF NOT EXISTS challenges_evaluations (
+        id SERIAL PRIMARY KEY,
+        challenge_id INTEGER NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,
+        input_example TEXT NOT NULL,
+        expected_output TEXT NOT NULL,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_challenges_created_by ON challenges(created_by);
+      CREATE INDEX IF NOT EXISTS idx_challenge_eval_challenge_id ON challenges_evaluations(challenge_id);
 
       CREATE TABLE IF NOT EXISTS sessions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -113,19 +125,6 @@ export const initializeDatabase = async () => {
       CREATE INDEX IF NOT EXISTS idx_content_history_lookup ON session_challenge_content_history(session_id, challenge_id, content_type, language);
       CREATE INDEX IF NOT EXISTS idx_content_history_updated ON session_challenge_content_history(updated_at DESC);
 
-      -- Legacy table (kept for backward compatibility, but not used in new flow)
-      CREATE TABLE IF NOT EXISTS session_language_history (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        session_id UUID NOT NULL REFERENCES sessions(id),
-        challenge_id INTEGER NOT NULL REFERENCES challenges(id),
-        content_type VARCHAR(50) NOT NULL DEFAULT 'code',
-        language VARCHAR(50) NOT NULL,
-        source VARCHAR(50),
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_language_history_session ON session_language_history(session_id, created_at);
-      CREATE INDEX IF NOT EXISTS idx_language_history_challenge ON session_language_history(challenge_id, created_at);
 
       -- Add missing columns to sessions table if they don't exist
       ALTER TABLE sessions ADD COLUMN IF NOT EXISTS session_code VARCHAR(20);
@@ -139,19 +138,14 @@ export const initializeDatabase = async () => {
       -- Add started column to track if challenge was initiated
       ALTER TABLE session_challenge_content ADD COLUMN IF NOT EXISTS started BOOLEAN DEFAULT false;
 
-      -- Starter code templates for challenges
+      -- Starter code templates para cada linguagem
       CREATE TABLE IF NOT EXISTS starter_codes (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        challenge_id INTEGER NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,
-        language VARCHAR(50) NOT NULL,
+        language VARCHAR(50) NOT NULL UNIQUE,
         content TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT NOW(),
-        updated_at TIMESTAMP DEFAULT NOW(),
-        CONSTRAINT unique_starter_code UNIQUE (challenge_id, language)
+        updated_at TIMESTAMP DEFAULT NOW()
       );
-
-      CREATE INDEX IF NOT EXISTS idx_starter_codes_challenge ON starter_codes(challenge_id);
-      CREATE INDEX IF NOT EXISTS idx_starter_codes_lookup ON starter_codes(challenge_id, language);
 
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
       CREATE INDEX IF NOT EXISTS idx_challenges_created_by ON challenges(created_by);
@@ -205,206 +199,334 @@ const seedChallenges = async () => {
         title: 'FizzBuzz',
         description: 'Write a program that prints numbers from 1 to 100. For multiples of 3, print "Fizz" instead of the number. For multiples of 5, print "Buzz". For multiples of both, print "FizzBuzz".',
         difficulty: 'basic',
-        input_example: 'n/a (no input)',
-        output_example: '1\n2\nFizz\n4\nBuzz\n...\n15 (FizzBuzz)\n...'
+        code_example: `def fizzbuzz(n):\n    res = []\n    for i in range(1, n+1):\n        if i % 15 == 0:\n            res.append('FizzBuzz')\n        elif i % 3 == 0:\n            res.append('Fizz')\n        elif i % 5 == 0:\n            res.append('Buzz')\n        else:\n            res.append(str(i))\n    return '\\n'.join(res)\n\nif __name__ == '__main__':\n    n = int(input())\n    print(fizzbuzz(n))`,
+        lang_example: 'python'
       },
       {
         title: 'Two Sum',
-        description: 'Given an array of integers nums and an integer target, return the indices of the two numbers that add up to the target. You may assume each input has exactly one solution, and you cannot use the same element twice.',
+        description: 'Given an array of integers nums and an integer target, return the indices of the two numbers that add up to the target. You may assume each input has exactly one solution, e não pode usar o mesmo elemento duas vezes.',
         difficulty: 'basic',
-        input_example: 'nums = [2, 7, 11, 15], target = 9',
-        output_example: '[0, 1]'
+        code_example: `def two_sum(nums, target):\n    lookup = {}\n    for i, num in enumerate(nums):\n        if target - num in lookup:\n            return [lookup[target - num], i]\n        lookup[num] = i\n\nif __name__ == '__main__':\n    import ast\n    nums = ast.literal_eval(input())\n    target = int(input())\n    print(two_sum(nums, target))`,
+        lang_example: 'python'
       },
       {
         title: 'Reverse String',
-        description: 'Write a function that reverses a string. The input string is given as an array of characters s. You must do this by modifying the input array in-place with O(1) extra memory.',
+        description: 'Write a function that reverses a string. The input string is given as an array of characters s. Você deve modificar o array in-place com O(1) memória extra.',
         difficulty: 'basic',
-        input_example: 's = ["h","e","l","l","o"]',
-        output_example: '["o","l","l","e","h"]'
+        code_example: `def reverse_string(s):\n    s.reverse()\n    return s\n\nif __name__ == '__main__':\n    import ast\n    s = ast.literal_eval(input())\n    print(reverse_string(s))`,
+        lang_example: 'python'
       },
       {
         title: 'Palindrome Number',
-        description: 'Given an integer x, return true if x is a palindrome, and false otherwise. An integer is a palindrome when it reads the same backward as forward.',
+        description: 'Given an integer x, return true if x is a palindrome, and false otherwise. Um inteiro é palíndromo se lê igual para frente e para trás.',
         difficulty: 'basic',
-        input_example: 'x = 121',
-        output_example: 'true'
+        code_example: `def is_palindrome(x):\n    return str(x) == str(x)[::-1]\n\nif __name__ == '__main__':\n    x = int(input())\n    print(is_palindrome(x))`,
+        lang_example: 'python'
       },
       {
         title: 'Valid Parentheses',
-        description: 'Given a string s containing just the characters "(", ")", "{", "}", "[" and "]", determine if the input string is valid. An input string is valid if: (1) Open brackets must be closed by the same type of brackets, (2) Open brackets must be closed in the correct order.',
+        description: 'Given a string s containing just the characters "(", ")", "{", "}", "[" and "]", determine if the input string is valid. Deve fechar corretamente e na ordem.',
         difficulty: 'intermediate',
-        input_example: 's = "()[]{}"',
-        output_example: 'true'
+        code_example: `def is_valid(s):\n    stack = []\n    pairs = {')': '(', '}': '{', ']': '['}\n    for c in s:\n        if c in pairs.values():\n            stack.append(c)\n        elif c in pairs:\n            if not stack or stack.pop() != pairs[c]:\n                return False\n    return not stack\n\nif __name__ == '__main__':\n    s = input()\n    print(is_valid(s))`,
+        lang_example: 'python'
       },
       {
         title: 'Binary Search',
-        description: 'Given an array of integers nums which is sorted in ascending order, and an integer target, write a function to search target in nums. If target exists, then return its index. Otherwise, return -1. You must write an algorithm with O(log n) runtime complexity.',
+        description: 'Given an array of integers nums which is sorted in ascending order, and an integer target, write a function to search target in nums. Se existir, retorna o índice, senão -1.',
         difficulty: 'intermediate',
-        input_example: 'nums = [-1,0,3,4,6,10], target = 13',
-        output_example: '-1'
+        code_example: `def binary_search(nums, target):\n    l, r = 0, len(nums) - 1\n    while l <= r:\n        m = (l + r) // 2\n        if nums[m] == target:\n            return m\n        elif nums[m] < target:\n            l = m + 1\n        else:\n            r = m - 1\n    return -1\n\nif __name__ == '__main__':\n    import ast\n    nums = ast.literal_eval(input())\n    target = int(input())\n    print(binary_search(nums, target))`,
+        lang_example: 'python'
       },
       {
         title: 'Longest Substring Without Repeating Characters',
         description: 'Given a string s, find the length of the longest substring without repeating characters.',
         difficulty: 'intermediate',
-        input_example: 's = "au"',
-        output_example: '2'
+        code_example: `def length_of_longest_substring(s):\n    seen = {}\n    max_len = start = 0\n    for i, c in enumerate(s):\n        if c in seen and seen[c] >= start:\n            start = seen[c] + 1\n        seen[c] = i\n        max_len = max(max_len, i - start + 1)\n    return max_len\n\nif __name__ == '__main__':\n    s = input()\n    print(length_of_longest_substring(s))`,
+        lang_example: 'python'
       },
       {
         title: 'Merge K Sorted Lists',
         description: 'You are given an array of k linked-lists lists, each linked-list is sorted in ascending order. Merge all the linked-lists into one sorted linked-list and return it.',
         difficulty: 'advanced',
-        input_example: 'lists = [[1,4,5],[1,3,4],[2,6]]',
-        output_example: '[1,1,2,1,3,4,4,5,6]'
+        code_example: `import heapq\ndef merge_k_lists(lists):\n    return list(heapq.merge(*lists))\n\nif __name__ == '__main__':\n    import ast\n    lists = ast.literal_eval(input())\n    print(merge_k_lists(lists))`,
+        lang_example: 'python'
       },
       {
         title: 'Median of Two Sorted Arrays',
-        description: 'Given two sorted arrays nums1 and nums2 of size m and n respectively, return the median of the two sorted arrays. The overall run time complexity should be O(log (m+n)).',
+        description: 'Given two sorted arrays nums1 and nums2 of size m and n respectively, return the median of the two sorted arrays.',
         difficulty: 'advanced',
-        input_example: 'nums1 = [1,3], nums2 = [2]',
-        output_example: '2.0'
+        code_example: `def find_median(nums1, nums2):\n    nums = sorted(nums1 + nums2)\n    n = len(nums)\n    if n % 2 == 1:\n        return float(nums[n//2])\n    else:\n        return (nums[n//2-1] + nums[n//2]) / 2\n\nif __name__ == '__main__':\n    import ast\n    nums1 = ast.literal_eval(input())\n    nums2 = ast.literal_eval(input())\n    print(find_median(nums1, nums2))`,
+        lang_example: 'python'
       },
       {
         title: 'Regular Expression Matching',
-        description: 'Given an input string s and a pattern p, implement regular expression matching with support for "." and "*" where: "." Matches any single character, "*" Matches zero or more of the preceding element.',
+        description: 'Given an input string s and a pattern p, implement regular expression matching com suporte a "." e "*".',
         difficulty: 'advanced',
-        input_example: 's = "aa", p = "a"',
-        output_example: 'false'
+        code_example: `import re\ndef regex_match(s, p):\n    return bool(re.fullmatch(p, s))\n\nif __name__ == '__main__':\n    s = input()\n    p = input()\n    print(regex_match(s, p))`,
+        lang_example: 'python'
       }
     ]
 
     for (const challenge of challenges) {
-      await query(
-        `INSERT INTO challenges (title, description, difficulty, input_example, output_example, created_by) 
-         VALUES ($1, $2, $3, $4, $5, $6)`,
+      // Adiciona lang_example se não existir
+      if (!challenge.lang_example) challenge.lang_example = 'python';
+      const res = await query(
+        `INSERT INTO challenges (title, description, difficulty, code_example, lang_example, created_by) 
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
         [
           challenge.title,
           challenge.description,
           challenge.difficulty,
-          challenge.input_example,
-          challenge.output_example,
+          challenge.code_example,
+          challenge.lang_example,
           systemUserId
         ]
-      )
+      );
+      const challengeId = res.rows[0].id;
+
+      // Seeds para challenges_evaluations (múltiplos casos por desafio)
+      switch (challenge.title) {
+        case 'FizzBuzz':
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, '15', '1\n2\nFizz\n4\nBuzz\nFizz\n7\n8\nFizz\nBuzz\n11\nFizz\n13\n14\nFizzBuzz', 'Primeiros 15 números']
+          );
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, '5', '1\n2\nFizz\n4\nBuzz', 'Primeiros 5 números']
+          );
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, '1', '1', 'Apenas 1 número']
+          );
+          break;
+        case 'Two Sum':
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, '[2, 7, 11, 15]\n9', '[0, 1]', 'Exemplo clássico']
+          );
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, '[3, 2, 4]\n6', '[1, 2]', 'Outro exemplo']
+          );
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, '[3, 3]\n6', '[0, 1]', 'Pares iguais']
+          );
+          break;
+        case 'Reverse String':
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, '["h","e","l","l","o"]', '["o","l","l","e","h"]', 'String simples']
+          );
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, '["a","b","c"]', '["c","b","a"]', 'Três letras']
+          );
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, '["x"]', '["x"]', 'Um caractere']
+          );
+          break;
+        case 'Palindrome Number':
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, '121', 'True', 'Número palíndromo']
+          );
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, '123', 'False', 'Número não palíndromo']
+          );
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, '1', 'True', 'Palíndromo unitário']
+          );
+          break;
+        case 'Valid Parentheses':
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, '()[]{}', 'True', 'Todos válidos']
+          );
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, '(]', 'False', 'Parênteses misturados']
+          );
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, '([)]', 'False', 'Ordem incorreta']
+          );
+          break;
+        case 'Binary Search':
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, '[-1,0,3,4,6,10]\n13', '-1', 'Busca sem sucesso']
+          );
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, '[-1,0,3,4,6,10]\n4', '3', 'Busca com sucesso']
+          );
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, '[1,2,3,4,5]\n1', '0', 'Busca no início']
+          );
+          break;
+        case 'Longest Substring Without Repeating Characters':
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, 'au', '2', 'Exemplo simples']
+          );
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, 'abcabcbb', '3', 'Repetição no meio']
+          );
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, 'bbbbb', '1', 'Todos iguais']
+          );
+          break;
+        case 'Merge K Sorted Lists':
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, '[[1,4,5],[1,3,4],[2,6]]', '[1, 1, 2, 3, 4, 4, 5, 6]', 'Merge de listas ordenadas']
+          );
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, '[[1],[2],[3]]', '[1, 2, 3]', 'Listas unitárias']
+          );
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, '[[],[1,2,3],[]]', '[1, 2, 3]', 'Listas com vazias']
+          );
+          break;
+        case 'Median of Two Sorted Arrays':
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, '[1,3]\n[2]', '2.0', 'Mediana de duas listas']
+          );
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, '[1,2]\n[3,4]', '2.5', 'Mediana par']
+          );
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, '[0,0]\n[0,0]', '0.0', 'Zeros']
+          );
+          break;
+        case 'Regular Expression Matching':
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, 'aa\na', 'False', 'Regex simples']
+          );
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, 'aa\naa', 'True', 'Regex igual']
+          );
+          await query(
+            `INSERT INTO challenges_evaluations (challenge_id, input_example, expected_output, description) VALUES ($1, $2, $3, $4)`,
+            [challengeId, 'ab\n.*', 'True', 'Regex qualquer']
+          );
+          break;
+      }
     }
-
-    // Seed starter codes
-    await seedStarterCodes()
-
-    console.log(`✅ ${challenges.length} challenges seeded successfully`)
-  } catch (error) {
-    console.error('Error seeding challenges:', error)
-    // Don't throw - seeding is optional
-  }
-}
-
-const seedStarterCodes = async () => {
-  try {
     // Check if starters already exist
-    const result = await query('SELECT COUNT(*) as count FROM starter_codes')
-    const count = parseInt(result.rows[0].count, 10)
-    
-    if (count > 0) {
-      console.log(`✅ Starter codes already seeded (${count} starters found)`)
+    const starterResult = await query('SELECT COUNT(*) as count FROM starter_codes')
+    const starterCount = parseInt(starterResult.rows[0].count, 10)
+    if (starterCount > 0) {
+      console.log(`✅ Starter codes already seeded (${starterCount} starters found)`)
       return
     }
-
     // Get all challenges
     const challengesResult = await query('SELECT id FROM challenges ORDER BY id')
-    
     if (challengesResult.rows.length === 0) {
       console.log('⚠️ No challenges found for starter seeding')
       return
     }
-
     const starterTemplates: { [key: string]: string } = {
-      python: `# Start coding here
+  python: `input_example = __INPUT_EXAMPLE__
 def solution(args):
-    pass
+    return ""
 
-# Test your solution
 if __name__ == "__main__":
-    result = solution(None)
-    print(result)`,
-
-      javascript: `// Start coding here
+    output = solution(input_example)
+    print(output)
+`,
+  javascript: `const input_example = __INPUT_EXAMPLE__;
 function solution(args) {
-  // Your code here
+  return "";
 }
 
-// Test your solution
-console.log(solution(null));`,
-
-      typescript: `// Start coding here
+console.log(solution(input_example));
+`,
+  typescript: `const input_example: any = __INPUT_EXAMPLE__;
 function solution(args: any): any {
-  // Your code here
+  return "";
 }
 
-// Test your solution
-console.log(solution(null));`,
-
-      java: `public class Solution {
+console.log(solution(input_example));
+`,
+  java: `public class Solution {
   public static Object solution(Object args) {
-    // Your code here
-    return null;
+    return "";
   }
-
   public static void main(String[] args) {
-    System.out.println(solution(null));
+    Object input_example = __INPUT_EXAMPLE__;
+    Object output = solution(input_example);
+    System.out.println(output);
   }
-}`,
-
-      cpp: `#include <iostream>
+}
+`,
+  cpp: `#include <bits/stdc++.h>
 using namespace std;
 
-void solution(void* args) {
-  // Your code here
+auto input_example = __INPUT_EXAMPLE__;
+
+auto solution(auto args) {
+  return string("");
 }
 
 int main() {
-  solution(nullptr);
+  auto output = solution(input_example);
+  cout << output << endl;
   return 0;
-}`,
+}
+`,
+  go: `import "fmt"
 
-      go: `package main
-
-import "fmt"
-
+var input_example = __INPUT_EXAMPLE__
 func solution(args interface{}) interface{} {
-  // Your code here
-  return nil
+  return ""
 }
 
 func main() {
-  result := solution(nil)
-  fmt.Println(result)
-}`,
-
-      csharp: `using System;
+  output := solution(input_example)
+  fmt.Println(output)
+}
+`,
+  csharp: `using System;
 
 public class Solution {
+  public static object input_example = __INPUT_EXAMPLE__;
   public static object Solution(object args) {
-    // Your code here
-    return null;
+    return "";
   }
-
   public static void Main() {
-    object result = Solution(null);
-    Console.WriteLine(result);
+    var output = Solution(input_example);
+    Console.WriteLine(output);
   }
-}`
-    }
+}
+`
+}
 
-    // Insert starter codes for each challenge and language
-    for (const challenge of challengesResult.rows) {
-      for (const [language, content] of Object.entries(starterTemplates)) {
-        await query(
-          `INSERT INTO starter_codes (challenge_id, language, content) 
-           VALUES ($1, $2, $3)
-           ON CONFLICT (challenge_id, language) DO NOTHING`,
-          [challenge.id, language, content]
-        )
-      }
+
+
+    // Insert only one starter code genérico por linguagem (challenge_id = NULL)
+    for (const [language, content] of Object.entries(starterTemplates)) {
+      await query(
+        `INSERT INTO starter_codes (language, content) 
+         VALUES ($1, $2)
+         ON CONFLICT (language) DO NOTHING`,
+        [language, content]
+      )
     }
 
     console.log(`✅ Starter codes seeded successfully`)

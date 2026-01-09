@@ -376,7 +376,7 @@ export const InterviewPage: React.FC<InterviewPageProps> = ({
             onSelect={handleNavigate}
             canAdvance={true}
           />
-          {currentChallenge && <ChallengeView challenge={currentChallenge} />}
+          {currentChallenge && <ChallengeView challenge={currentChallenge} sessionId={sessionId} />}
         </div>
       )}
 

@@ -14,7 +14,7 @@ export class GoExecutor extends BaseExecutor {
     return `go run "${filePath}"`
   }
 
-  async execute(code: string, tempDir: string, timeout: number, executionId?: string): Promise<ExecutionResult> {
+  async execute(code: string, tempDir: string, timeout: number, executionId?: string, input?: string): Promise<ExecutionResult> {
     const filename = `code.go`
     const filePath = path.join(tempDir, filename)
 
@@ -44,6 +44,12 @@ export class GoExecutor extends BaseExecutor {
           GOPATH: tempDir,
         },
       })
+
+      // Se houver input, escreve no stdin
+      if (input) {
+        child.stdin.write(input)
+        child.stdin.end()
+      }
 
       const timeoutId = setTimeout(() => {
         timedOut = true

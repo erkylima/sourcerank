@@ -68,7 +68,7 @@ export class SessionContentService {
 
       // Not in history either - return starter
       console.log('[SessionContentService] ℹ️ Not in history either, returning starter:', language)
-      const starter = await this.getStarterCode(challengeId, language)
+      const starter = await this.getStarterCode(language)
       return { 
         sessionId, 
         challengeId, 
@@ -85,7 +85,7 @@ export class SessionContentService {
     // Case 3: If challenge started but content empty (just switched language), return starter
     if (row.started && (!row.content || row.content.trim() === '')) {
       console.log('[SessionContentService] ℹ️ Challenge started but no content for language, returning starter:', { language })
-      const starter = await this.getStarterCode(challengeId, language)
+      const starter = await this.getStarterCode(language)
       return {
         id: row.id,
         sessionId: row.session_id,
@@ -117,20 +117,17 @@ export class SessionContentService {
   /**
    * Get starter code for a challenge and language from database
    */
-  private async getStarterCode(challengeId: number, language: string): Promise<string> {
+  private async getStarterCode(language: string): Promise<string> {
     try {
       const result = await query(
-        `SELECT content FROM starter_codes 
-         WHERE challenge_id = $1 AND language = $2`,
-        [challengeId, language]
+        `SELECT content FROM starter_codes WHERE language = $1`,
+        [language]
       )
-      
       if (result.rows.length > 0) {
-        console.log('[SessionContentService] ✅ Starter code found for:', { challengeId, language })
+        console.log('[SessionContentService] ✅ Starter code found for:', { language })
         return result.rows[0].content
       }
-      
-      console.log('[SessionContentService] ⚠️ No starter code found, returning empty:', { challengeId, language })
+      console.log('[SessionContentService] ⚠️ No starter code found, returning empty:', { language })
       return ''
     } catch (error) {
       console.error('[SessionContentService] Error fetching starter code:', error)

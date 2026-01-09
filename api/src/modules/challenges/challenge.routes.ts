@@ -3,6 +3,8 @@ import challengeController from './challenge.controller'
 import { authenticateToken, requireRole } from '../../middlewares/auth.middleware'
 
 const router = Router()
+// Avaliação automática do challenge
+router.get('/:id/evaluate', (req, res) => challengeController.evaluate(req, res))
 
 // Public routes
 router.get('/', (req, res) => challengeController.list(req, res))
