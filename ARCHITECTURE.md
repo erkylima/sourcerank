@@ -1,508 +1,189 @@
-# Arquitetura Completa - SourceRank Platform
+# Arquitetura — SourceRank
 
-## 🏗️ Diagrama Geral
+## Visão geral dos serviços
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         SOURCERANK INTERVIEW PLATFORM                        │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-                              Internet/Browser
-                                    │
-                    ┌───────────────┼───────────────┐
-                    │               │               │
-                    ▼               ▼               ▼
-            ┌─────────────┐  ┌─────────────┐ ┌──────────────┐
-            │  Frontend   │  │   WebSocket │ │    Runner    │
-            │  React 19   │  │  Socket.io  │ │  (Executor)  │
-            │  (5173)     │  │   (4000)    │ │   (3001)     │
-            └──────┬──────┘  └──────┬──────┘ └──────┬───────┘
-                   │                │               │
-                   │   REST API     │   WebSocket   │
-                   │   + WebSocket  │               │
-                   └────────┬───────┴───────────────┘
-                            │
-              ┌─────────────▼──────────────────┐
-              │      BACKEND API               │
-              │    Node.js + Express.js        │
-              │    TypeScript (4000)           │
-              │  ┌──────────────────────────┐  │
-              │  │  Express Middleware      │  │
-              │  ├──────────────────────────┤  │
-              │  │ Auth │ CORS │ Error      │  │
-              │  └──────────────────────────┘  │
-              │  ┌──────────────────────────┐  │
-              │  │  Route Handlers          │  │
-              │  ├──────────────────────────┤  │
-              │  │ /auth │ /challenges │... │  │
-              │  └────────┬──────────────────┘  │
-              │           │                     │
-              │  ┌────────▼──────────────────┐  │
-              │  │  Service Layer           │  │
-              │  ├────────────────────────┤  │
-              │  │ • AuthService          │  │
-              │  │ • ChallengeService     │  │
-              │  │ • SessionService       │  │
-              │  │ • ExecutionService     │  │
-              │  └────────┬────────────────┘  │
-              │           │                   │
-              │  ┌────────▼──────────────────┐ │
-              │  │  Database Layer          │ │
-              │  └──────────────────────────┘ │
-              └──────────────┬────────────────┘
-                             │
-              ┌──────────────▼──────────────┐
-              │    PostgreSQL (5432)        │
-              │  ┌──────────────────────┐   │
-              │  │ users                │   │
-              │  │ challenges           │   │
-              │  │ sessions             │   │
-              │  │ executions           │   │
-              │  │ logs                 │   │
-              │  └──────────────────────┘   │
-              └──────────────────────────────┘
+Browser (Entrevistador / Candidato)
+    │
+    ├── HTTP REST ──────────────────────────────────────────────────┐
+    ├── Socket.io (ws://:4000) ─────────────────────────────────────┤
+    └── Yjs WebSocket (ws://:4000/yjs) ──────────────────────────── ┤
+                                                                     │
+                                                    ┌────────────────▼──────────────────┐
+                                                    │     API (api/src/server.ts)       │
+                                                    │     Express + Socket.io           │
+                                                    │     porta 4000                    │
+                                                    └─────┬──────────────────┬──────────┘
+                                                          │                  │
+                                              ┌───────────▼──┐    ┌─────────▼──────────┐
+                                              │  PostgreSQL  │    │  yjs-relay          │
+                                              │  porta 5432  │    │  (interno :1234)    │
+                                              └──────────────┘    └────────────────────┘
+                                                          │
+                                              ┌───────────▼──────────┐
+                                              │  Runner               │
+                                              │  (runner/src/server)  │
+                                              │  porta 3001           │
+                                              └──────────────────────┘
 ```
 
----
-
-## 📦 Estrutura Modular da API
+## Módulos do backend
 
 ```
 api/src/
-│
-├── config/                          [CONFIGURAÇÃO CENTRALIZADA]
-│   ├── env.ts                       • Variáveis de ambiente
-│   └── database.ts                  • Pool PostgreSQL + Schema
-│
-├── modules/                         [LÓGICA DE NEGÓCIO - 5 MÓDULOS]
-│   │
-│   ├── auth/                        [AUTENTICAÇÃO]
-│   │   ├── auth.types.ts            • User, UserRole types
-│   │   ├── auth.service.ts          • JWT, bcryptjs
-│   │   ├── auth.controller.ts       • register, login, me
-│   │   └── auth.routes.ts           • POST /auth/...
-│   │
-│   ├── challenges/                  [GERENCIAMENTO DE DESAFIOS]
-│   │   ├── challenge.types.ts       • Challenge interface
-│   │   ├── challenge.service.ts     • CRUD operations
-│   │   ├── challenge.controller.ts  • Handlers
-│   │   └── challenge.routes.ts      • GET/POST /challenges
-│   │
-│   ├── sessions/                    [SESSÕES DE ENTREVISTA]
-│   │   ├── session.types.ts         • Session interface
-│   │   ├── session.service.ts       • Create, update, list
-│   │   ├── session.controller.ts    • Handlers
-│   │   └── session.routes.ts        • GET/POST /sessions
-│   │
-│   ├── execution/                   [ORQUESTRAÇÃO DE EXECUÇÃO]
-│   │   ├── execution.types.ts       • Execution interface
-│   │   ├── execution.service.ts     • Submit, track, report
-│   │   ├── execution.controller.ts  • Handlers
-│   │   └── execution.routes.ts      • POST /executions
-│   │
-│   └── users/                       [GERENCIAMENTO DE USUÁRIOS]
-│       └── (preparado para expansão)
-│
-├── middlewares/                     [EXPRESS MIDDLEWARES]
-│   └── auth.middleware.ts           • JWT verify, Role check
-│
-├── websocket/                       [SOCKET.IO GATEWAYS]
-│   └── execution.gateway.ts         • Real-time logs broadcast
-│
-├── utils/                           [UTILITÁRIOS]
-│   └── errors.ts                    • AppError, ValidationError, etc
-│
-├── app.ts                           [EXPRESS CONFIGURATION]
-│   └── CORS, routes, error handling
-│
-└── server.ts                        [INICIALIZAÇÃO]
-    └── HTTP server + Socket.io + DB init
+├── config/
+│   ├── database.ts       # Pool pg, initializeDatabase(), seed
+│   └── env.ts            # Variáveis de ambiente tipadas
+├── middlewares/
+│   └── auth.middleware.ts # authenticateToken, requireRole
+├── modules/
+│   ├── auth/             # register, login, me
+│   ├── challenges/       # CRUD + evaluate + examples
+│   ├── sessions/         # create-interview, request-access, accept, reject, end
+│   ├── execution/        # submit, report (callback do runner), logs
+│   ├── session-content/  # conteúdo do editor por sessão/challenge/linguagem
+│   │   ├── content-history.service.ts  # histórico ao trocar linguagem
+│   │   └── language.service.ts         # lógica de troca de linguagem
+│   └── crdt/
+│       ├── relay.controller.ts   # proxy HTTP para yjs-relay
+│       ├── relay.routes.ts       # GET /relay/state, POST /relay/snapshot
+│       └── polling.service.ts    # persiste CRDT → DB a cada 5s
+├── websocket/
+│   ├── execution.gateway.ts   # Socket.io: salas, broadcasts, notificações
+│   └── yjs-proxy.gateway.ts   # Proxy WebSocket /yjs → yjs-relay:1234
+└── utils/
+    └── errors.ts   # AppError, ValidationError, AuthenticationError, etc.
 ```
 
----
-
-## 🔄 Fluxo de Autenticação
+## Fluxo de execução de código
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                   AUTHENTICATION FLOW                         │
-└─────────────────────────────────────────────────────────────┘
-
-CLIENT                            API SERVER
-
-  │                                 │
-  │─── POST /auth/register ────────▶│
-  │     { email, password,         │
-  │       role, name }              │
-  │                                 │
-  │                     ┌──────────┐│
-  │                     │1. Validate   │
-  │                     │2. Hash pwd   │
-  │                     │3. Create user│
-  │                     └──────────┘│
-  │                                 │
-  │◀──── 201 Created ──────────────│
-  │     { user, token }             │
-  │                                 │
-  │─── POST /auth/login ───────────▶│
-  │     { email, password }          │
-  │                                 │
-  │                     ┌──────────┐│
-  │                     │1. Find user  │
-  │                     │2. Verify pwd │
-  │                     │3. Sign JWT   │
-  │                     └──────────┘│
-  │                                 │
-  │◀──── 200 OK ───────────────────│
-  │     { user, token }             │
-  │                                 │
-  │─── GET /auth/me ───────────────▶│
-  │     Authorization: Bearer token  │
-  │                                 │
-  │                     ┌──────────┐│
-  │                     │1. Verify JWT │
-  │                     │2. Get user   │
-  │                     └──────────┘│
-  │                                 │
-  │◀──── 200 OK ───────────────────│
-  │     { user }                    │
+Candidato clica "Executar"
+    │
+    ▼
+POST /executions { sessionId, challengeId, language, code }
+    │
+    ├── Cria registro em executions (status: pending)
+    ├── Emite 'session-execution-started-{sessionId}' via Socket
+    │   └─ Ambos os clientes recebem e fazem join-execution
+    │
+    ▼
+POST http://runner:3001/execute { executionId, language, code, input? }
+    │
+    ▼
+Runner executa código em /tmp/executions/{executionId}/
+    │
+    ├── Por linha de output → POST /executions/{id}/logs { message, level }
+    │   └─ API → broadcastLog → Socket 'execution-log-{id}' para sala
+    │
+    └── Ao finalizar → POST /executions/{id}/report { status, stdout, stderr, exitCode }
+        └─ API emite 'execution-completed-{id}' e 'session-execution-completed-{sessionId}'
 ```
 
----
-
-## 📊 Fluxo de Execução de Código
+## Fluxo de sincronização CRDT
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│              CODE EXECUTION FLOW (Real-time)                     │
-└──────────────────────────────────────────────────────────────────┘
+Usuário digita no CodeEditor
+    │
+    ▼
+useChallengeContent.updateContent(value)
+    │
+    ├── setSyncedContent(value)           # atualiza estado local
+    └── repository.publish(...)           # publica no Yjs
+            │
+            ▼
+        crdt-sync.service.ts
+            └── Y.Doc.transact()         # atualiza o doc local
+                    │
+                    └── doc.on('update') → ws.send(update) → yjs-relay
+                            │
+                            └── yjs-relay → broadcast para outros clientes
+                                    │
+                                    └── clientes recebem → Y.applyUpdate()
+                                            │
+                                            └── ytext.observe() → setSyncedContent()
+                                                    │
+                                                    └── CodeEditor re-renderiza
 
-CANDIDATE                   API SERVER                    RUNNER
-(Browser)                   (Backend)                   (Executor)
-
-    │                          │                           │
-    │─ POST /executions ──────▶│                           │
-    │  { code, language }       │                           │
-    │                           │                           │
-    │            ┌─────────────┐│                           │
-    │            │1. Create exec│                           │
-    │            │2. Store to DB│                           │
-    │            └─────────────┘│                           │
-    │                           │                           │
-    │◀─ 202 Accepted ──────────│                           │
-    │  { executionId }          │                           │
-    │                           │                           │
-    │         ┌─────────────────│──────────────────┐        │
-    │         │                 │                   │        │
-    │         │                 │ HTTP POST /execute        │
-    │ JOIN    │                 │─────────────────▶│        │
-    │ WebSocket               { executionId,       │        │
-    │ room    │                  code, language }  │        │
-    │         │                                    │        │
-    │         │                 ┌────────────────┐ │
-    │         │                 │1. Create       │ │
-    │         │                 │   container    │ │
-    │         │                 │2. Execute code │ │
-    │         │                 └────────────────┘ │
-    │         │                                    │
-    │         │◀─ Logs streamed via stdout/stderr │
-    │         │                                    │
-    │         │ HTTP POST /executions/id/report  │
-    │         │◀────────────────────────────────-│
-    │         │  { status, stdout, stderr,       │
-    │         │    exitCode, time }              │
-    │         │                                   │
-    │         │ UPDATE database                   │
-    │         │                                   │
-    │ WebSocket │ execution-status event         │
-    │◀───────────┤ { status, output }             │
-    │ Atualiza   │                               │
-    │ Terminal   │                               │
-    │            │                               │
-
-Timeline:
-┌────────────────────────────────────────────────────┐
-│ Submission → Container Start → Code Execute → Done │
-│    ~0ms         ~100ms           ~50-5000ms    ~50ms │
-│ Total: 30s timeout per execution                  │
-└────────────────────────────────────────────────────┘
+Em paralelo, polling.service.ts (a cada 5s):
+    GET yjs-relay/relay/state → se mudou → salva no PostgreSQL
 ```
 
----
-
-## 🗄️ Banco de Dados - Relacionamentos
+## Fluxo de entrada na sessão (candidato)
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                    DATABASE SCHEMA DIAGRAM                        │
-└──────────────────────────────────────────────────────────────────┘
+POST /sessions/request-access { sessionCode }
+    │
+    ├── Atualiza sessions.interviewee_id
+    └── Socket: notifyInterviewerOfAccessRequest → 'candidate-access-request'
+            │
+            └── Tela CreateSession recebe via Socket.io
 
-        ┌─────────────────────┐
-        │      USERS          │
-        ├─────────────────────┤
-        │ id (PK)             │
-        │ email (UNIQUE)      │
-        │ password_hash       │
-        │ role                │◄──┐
-        │ name                │   │
-        │ created_at          │   │
-        │ updated_at          │   │
-        └──────┬──────────────┘   │
-               │                  │
-         ┌─────┴─────┐            │
-         │           │            │
-    ┌────▼────┐  ┌────▼────┐    │
-    │          │  │          │   │
-    ▼          │  ▼          │   │ created_by
-┌──────────────┼──────────────┐  │
-│ CHALLENGES   │  SESSIONS    │  │
-├──────────────┼──────────────┤  │
-│ id (PK)      │ id (PK)      │  │
-│ title        │ interviewer_id──┘
-│ description  │ interviewee_id──┐
-│ difficulty   │ current_       │
-│ examples     │ challenge_id   │
-│ created_by   ├─(FK)──────────┐│
-│ timestamps   │              ││
-└──────┬───────┤ status       ││
-       │       │ timestamps   ││
-       │       └──────┬──────┘│
-       │              │       │
-       │        ┌─────┘       │
-       │        │             │
-       │        ▼             │
-       │   ┌──────────────┐   │
-       │   │  EXECUTIONS  │   │
-       │   ├──────────────┤   │
-       │   │ id (PK)      │   │
-       │   │ session_id   │◄──┤
-       │   │ challenge_id │◄──┘
-       └──▶│ language     │
-           │ code         │
-           │ status       │
-           │ stdout       │
-           │ stderr       │
-           │ exit_code    │
-           │ exec_time    │
-           │ timestamps   │
-           └────┬─────────┘
-                │
-                ▼ (1..*)
-           ┌──────────────┐
-           │    LOGS      │
-           ├──────────────┤
-           │ id (PK)      │
-           │ execution_id │ (FK)
-           │ message      │
-           │ level        │
-           │ created_at   │
-           └──────────────┘
+PATCH /sessions/:id/accept
+    ├── interviewee_accepted = true
+    └── status = 'active'
+
+Candidato faz polling GET /sessions/:id (a cada 2s em JoinSession.tsx)
+    └── Quando interviewee_accepted === true → navigate('/interview-session/:id')
 ```
 
----
-
-## 🔌 WebSocket Events Map
+## Schema do banco de dados
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│            WEBSOCKET COMMUNICATION ARCHITECTURE                  │
-└─────────────────────────────────────────────────────────────────┘
+users ──────────────────────────────────────────────────────────────────────────
+  id UUID PK · email UNIQUE · password_hash · role(interviewer|interviewee) · name
 
-CLIENT (Browser)                    SERVER (Socket.io)
+challenges ─────────────────────────────────────────────────────────────────────
+  id SERIAL PK · title · description · difficulty(basic|intermediate|advanced)
+  code_example · lang_example · created_by FK→users
 
-    │                                     │
-    │─ join-execution ──────────────────▶│
-    │   { executionId }                   │
-    │                          ┌─────────┐│
-    │                          │ Join    ││
-    │                          │ room    ││
-    │                          └─────────┘│
-    │                                     │
-    │◀─ execution-log ──────────────────│
-    │   { message, level, timestamp }    │
-    │                                    │
-    │◀─ execution-log ──────────────────│
-    │   { message, level, timestamp }    │
-    │                                    │
-    │◀─ execution-status ───────────────│
-    │   { status, stdout, stderr,        │
-    │     exitCode }                     │
-    │                                    │
-    │─ leave-execution ─────────────────▶│
-    │   { executionId }                  │
-    │                          ┌─────────┐│
-    │                          │ Leave   ││
-    │                          │ room    ││
-    │                          └─────────┘│
+challenges_evaluations ─────────────────────────────────────────────────────────
+  id SERIAL PK · challenge_id FK→challenges · input_example · expected_output
 
-Sessions (Parallel):
+sessions ───────────────────────────────────────────────────────────────────────
+  id UUID PK · interviewer_id FK→users · interviewee_id FK→users nullable
+  current_challenge_id FK→challenges nullable · preferred_language
+  status(pending|active|completed|cancelled|expired)
+  session_code VARCHAR(20) · interviewee_accepted BOOL · expires_at
 
-    │─ join-session ────────────────────▶│
-    │   { sessionId }                    │
-    │                                    │
-    │◀─ challenge-changed ──────────────│
-    │   { challengeId }                  │
-    │                                    │
-    │◀─ session-status ─────────────────│
-    │   { status }                       │
+executions ─────────────────────────────────────────────────────────────────────
+  id UUID PK · session_id FK→sessions · language · code
+  status(pending|running|completed|error) · output · error · execution_time_ms
+
+logs ───────────────────────────────────────────────────────────────────────────
+  id UUID PK · execution_id FK→executions · message · level(info|error|warning)
+
+session_challenge_content ──────────────────────────────────────────────────────
+  id UUID PK · session_id FK · challenge_id FK · content_type(code|notes)
+  language · content · started BOOL
+  UNIQUE(session_id, challenge_id, content_type)   ← apenas um por combinação
+
+session_challenge_content_history ─────────────────────────────────────────────
+  id UUID PK · session_id FK · challenge_id FK · content_type
+  language · content                               ← sem UNIQUE, armazena histórico
+
+starter_codes ──────────────────────────────────────────────────────────────────
+  id UUID PK · language UNIQUE · content           ← template genérico por linguagem
 ```
 
----
-
-## 📈 Sequência de uma Entrevista Completa
+## Componentes do frontend
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│          COMPLETE INTERVIEW SESSION FLOW                          │
-└──────────────────────────────────────────────────────────────────┘
-
-STEP 1: Interviewer Setup
-───────────────────────────
-  Interviewer │ POST /auth/register { role: 'interviewer' }
-              │ POST /auth/login
-              │ POST /challenges { challenge data }
-              │ GET  /challenges ← View all challenges created
-
-STEP 2: Candidate Setup
-──────────────────────────
-  Interviewee │ POST /auth/register { role: 'interviewee' }
-              │ POST /auth/login
-              │ GET  /challenges ← View available challenges
-
-STEP 3: Create Session
-────────────────────────
-  Interviewer │ POST /sessions { intervieweeId, challengeId }
-              │       ▶ Session created with status: pending
-              │ GET  /sessions ← See pending sessions
-
-STEP 4: Join Session
-──────────────────────
-  Interviewer │ GET /sessions/:id ← View session
-              │ WS  join-session { sessionId }
-              │
-  Interviewee │ GET /sessions/:id ← See incoming interview request
-              │ WS  join-session { sessionId }
-
-STEP 5: Start Interview
-─────────────────────────
-  Interviewer │ PATCH /sessions/:id/status { status: 'active' }
-              │ WS    broadcast session-status { active }
-
-STEP 6: Submit Code
-────────────────────
-  Interviewee │ POST /executions {
-              │        code: "print('hello')",
-              │        language: 'python'
-              │      }
-              │ WS   join-execution { executionId }
-              │
-  Interviewer │ WS   receive execution-log { "Starting..." }
-              │ WS   receive execution-log { "Python 3.12..." }
-              │ WS   receive execution-log { "Output: hello" }
-              │ WS   receive execution-status { completed }
-
-STEP 7: Review & Feedback
-──────────────────────────
-  Interviewer │ GET /executions/session/:id ← See all submissions
-              │ PATCH /sessions/:id/challenge ← Move to next challenge
-              │ WS    broadcast challenge-changed { newChallengeId }
-
-STEP 8: Complete Interview
-────────────────────────────
-  Interviewer │ PATCH /sessions/:id/status { status: 'completed' }
-              │ WS    broadcast session-status { completed }
-              │ GET  /sessions/:id ← Session archive
+App.tsx
+├── AuthProvider (context)
+├── SessionProvider (context)
+└── Routes
+    ├── /login              → Login.tsx
+    ├── /create-session     → CreateSession.tsx (interviewer)
+    ├── /join-session       → JoinSession.tsx (interviewee)
+    └── /interview-session/:id → InterviewSession.tsx | IntervieweeView.tsx
+                                    └── InterviewPage.tsx (role='interviewer'|'interviewee')
+                                            ├── ChallengeNavigator (sidebar)
+                                            ├── CodeEditor
+                                            │     ├── useChallengeContent (hook)
+                                            │     │     ├── TanStack Query → DB
+                                            │     │     └── Yjs CRDT → real-time
+                                            │     └── EditorSyncController (Monaco ↔ CRDT)
+                                            ├── ChallengeView
+                                            └── ExecutionTerminal (xterm.js)
 ```
-
----
-
-## 🔐 Security Architecture
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│              SECURITY LAYERS & MECHANISMS                         │
-└──────────────────────────────────────────────────────────────────┘
-
-LAYER 1: Transport Security
-───────────────────────────
-  ✓ HTTPS/WSS (in production)
-  ✓ CORS policy configured
-
-LAYER 2: Authentication
-────────────────────────
-  POST /auth/register ─┐
-                       ├─▶ Password Hash (bcryptjs 10 rounds)
-  POST /auth/login ────┘   JWT Sign (RS256 in production)
-                          Store in localStorage
-
-LAYER 3: Authorization
-───────────────────────
-  Request ─┐
-           ├─▶ Extract JWT from header
-           ├─▶ Verify signature & expiration
-  Middleware◀─ Attach userId & userRole
-           ├─▶ Check role for protected routes
-  Grant Access
-
-LAYER 4: Data Layer
-───────────────────
-  Query ──┐
-          ├─▶ Parameterized queries (SQL injection prevention)
-  Database◀─ Row-level security via userId/role checks
-          ├─▶ Foreign key constraints
-          └─▶ Unique constraints (email)
-
-LAYER 5: Application Layer
-───────────────────────────
-  ✓ Input validation (Joi)
-  ✓ Error messages don't leak info
-  ✓ Rate limiting ready
-  ✓ CORS allow-list
-  ✓ Timeout enforcement (30s)
-```
-
----
-
-## 📊 API Response Patterns
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│              STANDARDIZED RESPONSE FORMAT                         │
-└──────────────────────────────────────────────────────────────────┘
-
-SUCCESS (200, 201, 204)
-───────────────────────
-  {
-    "data": { ... },           ← Resource data
-    "meta": { ... }            ← Optional metadata
-  }
-
-SUCCESS (202 - Accepted)
-────────────────────────
-  {
-    "execution": { ... },      ← Created async resource
-    "message": "Accepted for processing"
-  }
-
-ERROR (4xx, 5xx)
-─────────────────
-  {
-    "error": "User not found",
-    "statusCode": 404,
-    "timestamp": "2025-01-03T12:00:00Z"
-  }
-
-VALIDATION ERROR (400)
-──────────────────────
-  {
-    "error": "Validation failed",
-    "details": {
-      "email": "Invalid email format",
-      "password": "Must be at least 8 characters"
-    }
-  }
-```
-
----
-
-Diagrama completo da arquitetura do SourceRank Interview Platform.
