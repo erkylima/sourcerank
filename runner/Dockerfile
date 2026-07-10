@@ -27,8 +27,11 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install Node dependencies
-RUN npm ci
+# Generate package-lock.json first (required for subsequent builds)
+RUN npm install --package-lock-only 2>/dev/null || true
+
+# Install Node dependencies with proper lockfile
+RUN npm ci || npm install
 
 # Copy source code
 COPY . .
